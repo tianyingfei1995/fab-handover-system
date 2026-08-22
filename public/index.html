@@ -1,0 +1,1935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <title>FAB生产日常交接系统</title>
+  <link rel="stylesheet" href="css/style.css?v=20260822uidropdown">
+  <script src="lib/chart.umd.min.js"></script>
+  <script>
+    // 早期加载主题，防止闪烁
+    (function() {
+      var t = localStorage.getItem('fab-theme') || 'light';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- 登录遮罩 -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-box">
+      <div class="login-header">
+        <div class="login-logo">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/>
+          </svg>
+        </div>
+        <h1>FAB 交接系统</h1>
+        <p>请输入工号和密码登录</p>
+      </div>
+      <div class="login-form">
+        <div class="login-field">
+          <label>工号</label>
+          <input type="text" id="loginEmployeeId" placeholder="请输入工号" autocomplete="off">
+        </div>
+        <div class="login-field">
+          <label>密码</label>
+          <input type="password" id="loginPassword" placeholder="请输入密码" autocomplete="off">
+        </div>
+        <div class="login-error" id="loginError"></div>
+        <button class="btn btn-primary login-btn" id="loginBtn" onclick="doLogin()">登录</button>
+        <p class="login-hint">请使用您的工号和密码登录</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 侧边栏遮罩层（移动端） -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
+
+  <!-- 顶部导航 -->
+  <header class="top-header">
+    <div class="header-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="菜单">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <span class="logo-title">FAB 交接系统</span>
+          <span class="logo-sub">Production Handover System</span>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="datetime-display">
+        <span id="currentDate"></span>
+        <span id="currentTime"></span>
+      </div>
+      <div class="shift-badge" id="shiftBadge">班次: --</div>
+      <!-- 主题切换器 -->
+      <div class="theme-switcher" id="themeSwitcher">
+        <button class="theme-btn" onclick="toggleThemePanel()" title="切换主题" aria-label="切换主题">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+          </svg>
+        </button>
+        <div class="theme-panel" id="themePanel">
+          <div class="theme-panel-title">选择主题</div>
+          <div class="theme-option" data-theme="light" onclick="setTheme('light')">
+            <div class="theme-preview theme-preview-light">
+              <span class="tp-bg"></span><span class="tp-card"></span><span class="tp-accent"></span>
+            </div>
+            <span class="theme-option-label">晨光白</span>
+          </div>
+          <div class="theme-option" data-theme="slate" onclick="setTheme('slate')">
+            <div class="theme-preview theme-preview-slate">
+              <span class="tp-bg"></span><span class="tp-card"></span><span class="tp-accent"></span>
+            </div>
+            <span class="theme-option-label">雾岩灰</span>
+          </div>
+          <div class="theme-option" data-theme="dark" onclick="setTheme('dark')">
+            <div class="theme-preview theme-preview-dark">
+              <span class="tp-bg"></span><span class="tp-card"></span><span class="tp-accent"></span>
+            </div>
+            <span class="theme-option-label">深夜蓝</span>
+          </div>
+          <div class="theme-option" data-theme="noir" onclick="setTheme('noir')">
+            <div class="theme-preview theme-preview-noir">
+              <span class="tp-bg"></span><span class="tp-card"></span><span class="tp-accent"></span>
+            </div>
+            <span class="theme-option-label">暗夜墨</span>
+          </div>
+        </div>
+      </div>
+      <div class="user-info-box" id="userInfoBox" style="display:none;">
+        <span class="user-avatar" id="userAvatar">--</span>
+        <div class="user-detail">
+          <span class="user-name" id="userName">--</span>
+          <span class="user-role" id="currentUserRole">--</span>
+        </div>
+        <button class="logout-btn" onclick="openChangePwdModal()" title="修改密码">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
+        <button class="logout-btn" onclick="doLogout()" title="登出">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 侧边导航 -->
+  <nav class="sidebar">
+    <a class="nav-item active" data-view="dashboard">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      <span>仪表盘</span>
+    </a>
+    <a class="nav-item" data-view="machines">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h20M4 20V8l8-4 8 4v12M9 14h6M9 17h6"/></svg>
+      <span>机台<span class="nav-tag nav-tag-short">近期</span>交接</span>
+    </a>
+    <a class="nav-item" data-view="duty-issues">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span>值班问题</span>
+    </a>
+    <a class="nav-item" data-view="daily-handovers">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M9 16l2 2 4-4"/></svg>
+      <span>其他交接</span>
+    </a>
+    <a class="nav-item" data-view="sign-in">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/><path d="M16 14v6M8 14v6M12 16v4"/></svg>
+      <span>交接签到表</span>
+    </a>
+    <a class="nav-item" data-view="lot-handover">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 8l-4 4 4 4M17 8l4 4-4 4M14 4l-4 16"/></svg>
+      <span>LOT交接</span>
+    </a>
+    <a class="nav-item" data-view="handovers">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+      <span>机台<span class="nav-tag nav-tag-long">长期</span>交接</span>
+    </a>
+    <a class="nav-item" data-view="ar-handovers">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+      <span>AR交接</span>
+    </a>
+    <a class="nav-item admin-only" data-view="user-mgmt" style="display:none;">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>用户与权限</span>
+    </a>
+    <a class="nav-item admin-only" data-view="dept-mgmt" style="display:none;">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+      <span>部门管理</span>
+    </a>
+
+  </nav>
+
+  <!-- 主内容区 -->
+  <main class="main-content">
+
+    <!-- ===== 仪表盘 ===== -->
+    <section class="view-section active" id="view-dashboard">
+      <div class="section-header">
+        <h1 class="section-title">生产交接仪表盘</h1>
+        <p class="section-desc">汇总机台近期交接 / 机台长期交接 / LOT交接 / 交接签到表数据概览</p>
+      </div>
+
+      <!-- 统计卡片 -->
+      <div class="stats-grid">
+        <div class="stat-card stat-blue">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h20M4 20V8l8-4 8 4v12"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="statTotalMachines">0</span>
+            <span class="stat-label">机台近期交接</span>
+          </div>
+        </div>
+
+        <div class="stat-card stat-green">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="statTotalLtMachines">0</span>
+            <span class="stat-label">机台长期交接</span>
+          </div>
+        </div>
+
+        <div class="stat-card stat-orange">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 8l-4 4 4 4M17 8l4 4-4 4M14 4l-4 16"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="statTotalLots">0</span>
+            <span class="stat-label">LOT交接</span>
+          </div>
+        </div>
+
+        <div class="stat-card stat-purple">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/><path d="M16 14v6M8 14v6M12 16v4"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="statTotalSignIns">0</span>
+            <span class="stat-label">交接签到表</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据看板主体：左侧机台状态图 + 右侧LOT概览 并排 -->
+      <div class="dash-main-grid">
+        <!-- 机台状态分布 -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>机台近期交接 · 状态分布</h3>
+            <span class="chart-sub">共 <b id="machineChartTotal">0</b> 台</span>
+          </div>
+          <div class="chart-body chart-body-with-legend">
+            <canvas id="machineChart"></canvas>
+          </div>
+        </div>
+
+        <!-- LOT交接概览 -->
+        <div class="dash-summary-card">
+          <div class="dash-summary-header">
+            <h3>LOT交接概览</h3>
+            <span class="dash-summary-count" id="lotSummaryCount">0</span>
+          </div>
+          <div class="dash-summary-body" id="lotSummaryBody">
+            <div class="empty-state">暂无数据</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 高优先级交接提醒 -->
+      <div class="dashboard-alerts">
+        <div class="alerts-header">
+          <h3>高优先级交接提醒</h3>
+          <span class="alerts-count" id="alertCount">0</span>
+        </div>
+        <div class="alerts-list" id="alertList">
+          <div class="empty-state">暂无高优先级事项</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 机台状态 ===== -->
+    <section class="view-section" id="view-machines">
+      <div class="section-header">
+        <h1 class="section-title">机台<span class="nav-tag nav-tag-short">近期</span>交接管理</h1>
+        <p class="section-desc">记录和追踪FAB产线机台运行状态</p>
+      </div>
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="machineSearch" placeholder="搜索机台名称/Owner...">
+        </div>
+        <div class="filter-group">
+          <select id="machineStatusFilter" class="filter-select">
+            <option value="">全部状态</option>
+            <option value="running">运行中</option>
+            <option value="down">停机</option>
+            <option value="idle">待机</option>
+            <option value="maintenance">保养维护中</option>
+            <option value="abnormal_pending">异常待处理</option>
+            <option value="repairing">维修中</option>
+            <option value="standby">备用</option>
+          </select>
+        </div>
+        <button class="btn btn-primary perm-add-btn" data-perm-module="machine" onclick="openMachineModal()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          新增机台
+        </button>
+        <button class="btn btn-ghost btn-trash" onclick="openTrashModal('machine')" title="查看已删除的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          回收站
+        </button>
+      </div>
+      <!-- 批量操作栏 -->
+      <div class="batch-bar">
+        <div class="batch-bar-left">
+          <label class="batch-checkbox-all">
+            <input type="checkbox" id="selectAllMachines" onchange="toggleSelectAll(this.checked)">
+            <span>全选</span>
+          </label>
+          <span class="batch-count" id="batchCount">已选 0 项</span>
+        </div>
+        <div class="batch-bar-right">
+          <select id="batchProcessStatus" class="filter-select">
+            <option value="">-- 批量修改处理状态 --</option>
+            <option value="pending">待处理</option>
+            <option value="in_progress">处理中</option>
+            <option value="resolved">已解决</option>
+            <option value="closed">已关闭</option>
+            <option value="delete" style="color: #ef4444; font-weight: 600;">— 删除选中记录 —</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="batchUpdateProcessStatus()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+            应用
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="clearSelection()">取消选择</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="machineTable">
+          <thead>
+            <tr>
+              <th style="width:36px;"><input type="checkbox" id="selectAllMachinesHead" onchange="toggleSelectAll(this.checked)"></th>
+              <th class="sortable" data-key="machine_name" onclick="sortMachineTable('machine_name')" style="width:120px;">机台名称 <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="status" onclick="sortMachineTable('status')" style="width:90px;">机台状态 <span class="sort-icon"></span></th>
+              <th class="sortable sorted-desc" data-key="shift" onclick="sortMachineTable('shift')" style="width:120px;">班次 <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="owner" onclick="sortMachineTable('owner')" style="width:90px;">机台Owner <span class="sort-icon"></span></th>
+              <th style="min-width:300px;">机台交接信息</th>
+              <th style="width:120px;">备注</th>
+              <th style="width:70px;">异常记录</th>
+              <th class="sortable" data-key="process_status" onclick="sortMachineTable('process_status')" style="width:80px;">处理状态 <span class="sort-icon"></span></th>
+              <th style="width:70px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="machineTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== 长期交接 ===== -->
+    <section class="view-section" id="view-handovers">
+      <div class="section-header">
+        <h1 class="section-title">机台<span class="nav-tag nav-tag-long">长期</span>交接管理</h1>
+        <p class="section-desc">记录和追踪FAB产线机台长期运行状态（独立数据库）</p>
+      </div>
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="ltMachineSearch" placeholder="搜索机台名称/Owner...">
+        </div>
+        <div class="filter-group">
+          <select id="ltMachineStatusFilter" class="filter-select">
+            <option value="">全部状态</option>
+            <option value="running">运行中</option>
+            <option value="down">停机</option>
+            <option value="idle">待机</option>
+            <option value="maintenance">保养维护中</option>
+            <option value="abnormal_pending">异常待处理</option>
+            <option value="repairing">维修中</option>
+            <option value="standby">备用</option>
+          </select>
+        </div>
+        <button class="btn btn-primary perm-add-btn" data-perm-module="lt-machine" onclick="openLtMachineModal()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          新增机台
+        </button>
+        <button class="btn btn-ghost btn-trash" onclick="openTrashModal('lt-machine')" title="查看已删除的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          回收站
+        </button>
+      </div>
+      <!-- 批量操作栏 -->
+      <div class="batch-bar">
+        <div class="batch-bar-left">
+          <label class="batch-checkbox-all">
+            <input type="checkbox" id="ltSelectAllMachines" onchange="toggleLtSelectAll(this.checked)">
+            <span>全选</span>
+          </label>
+          <span class="batch-count" id="ltBatchCount">已选 0 项</span>
+        </div>
+        <div class="batch-bar-right">
+          <select id="ltBatchProcessStatus" class="filter-select">
+            <option value="">-- 批量修改处理状态 --</option>
+            <option value="pending">待处理</option>
+            <option value="in_progress">处理中</option>
+            <option value="resolved">已解决</option>
+            <option value="closed">已关闭</option>
+            <option value="delete" style="color: #ef4444; font-weight: 600;">— 删除选中记录 —</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="batchUpdateLtProcessStatus()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+            应用
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="clearLtSelection()">取消选择</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="ltMachineTable">
+          <thead>
+            <tr>
+              <th style="width:32px;"><input type="checkbox" id="ltSelectAllMachinesHead" onchange="toggleLtSelectAll(this.checked)"></th>
+              <th class="sortable" data-key="machine_name" onclick="sortLtMachineTable('machine_name')" style="width:100px;">机台名称 <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="status" onclick="sortLtMachineTable('status')" style="width:80px;">机台状态 <span class="sort-icon"></span></th>
+              <th class="sortable sorted-desc" data-key="shift" onclick="sortLtMachineTable('shift')" style="width:105px;">预计到期时间 <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="owner" onclick="sortLtMachineTable('owner')" style="width:80px;">机台Owner <span class="sort-icon"></span></th>
+              <th style="width:350px;">机台交接信息</th>
+              <th style="width:100px;">备注</th>
+              <th style="width:80px;">异常记录</th>
+              <th class="sortable" data-key="process_status" onclick="sortLtMachineTable('process_status')" style="width:70px;">处理状态 <span class="sort-icon"></span></th>
+              <th style="width:60px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="ltMachineTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== 其他交接 ===== -->
+    <section class="view-section" id="view-daily-handovers">
+      <div class="section-header">
+        <h1 class="section-title">其他交接提示</h1>
+        <p class="section-desc">其他班次交接事项追踪（独立数据库）</p>
+      </div>
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="dailyHandoverSearch" placeholder="搜索标题/内容...">
+        </div>
+        <div class="filter-group">
+          <select id="dailyHandoverPriorityFilter" class="filter-select">
+            <option value="">全部优先级</option>
+            <option value="high">高</option>
+            <option value="medium">中</option>
+            <option value="low">低</option>
+          </select>
+          <select id="dailyHandoverStatusFilter" class="filter-select">
+            <option value="">全部状态</option>
+            <option value="open">待处理</option>
+            <option value="in_progress">处理中</option>
+            <option value="resolved">已解决</option>
+            <option value="closed">已关闭</option>
+          </select>
+        </div>
+        <button class="btn btn-primary perm-add-btn" data-perm-module="daily-handover" onclick="openDailyHandoverModal()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          新增交接
+        </button>
+        <button class="btn btn-ghost btn-trash" onclick="openTrashModal('daily-handover')" title="查看已删除的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          回收站
+        </button>
+      </div>
+      <div class="handover-grid" id="dailyHandoverGrid"></div>
+    </section>
+
+    <!-- ===== LOT交接 ===== -->
+    <section class="view-section" id="view-lot-handover">
+      <div class="section-header">
+        <h1 class="section-title">LOT交接管理</h1>
+        <p class="section-desc">LOT交接信息管理（独立数据库）</p>
+      </div>
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="lotHandoverSearch" placeholder="搜索 Lot ID / Detail / Comment / Follow up...">
+        </div>
+        <button class="btn btn-primary perm-add-btn" data-perm-module="lot-handover" onclick="openLotHandoverModal()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          新增交接
+        </button>
+        <button class="btn btn-ghost btn-trash" onclick="openTrashModal('lot-handover')" title="查看已删除的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          回收站
+        </button>
+      </div>
+      <!-- 批量操作栏 -->
+      <div class="batch-bar">
+        <div class="batch-bar-left">
+          <label class="batch-checkbox-all">
+            <input type="checkbox" onchange="toggleLotHSelectAll(this.checked)">
+            <span>全选</span>
+          </label>
+          <span class="batch-count" id="lotHBatchCount">已选 0 项</span>
+        </div>
+        <div class="batch-bar-right">
+          <button class="btn btn-danger btn-sm" onclick="batchDeleteLotHandovers()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            删除选中记录
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="clearLotHSelection()">取消选择</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="lotHandoverTable">
+          <thead>
+            <tr>
+              <th style="width:32px;"><input type="checkbox" onchange="toggleLotHSelectAll(this.checked)"></th>
+              <th class="sortable sorted-desc" data-key="lot_id" onclick="sortLotHTable('lot_id')" style="width:120px;">Lot ID <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="status" onclick="sortLotHTable('status')" style="width:90px;">Status <span class="sort-icon"></span></th>
+              <th style="width:200px;">Detail</th>
+              <th style="width:200px;">Comment</th>
+              <th style="width:300px;">Follow up</th>
+              <th class="sortable" data-key="updated_at" onclick="sortLotHTable('updated_at')" style="width:100px;">更新时间 <span class="sort-icon"></span></th>
+              <th style="width:60px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="lotHandoverTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== 交接签到表 ===== -->
+    <section class="view-section" id="view-sign-in">
+      <div class="section-header">
+        <h1 class="section-title">交接签到表管理</h1>
+        <p class="section-desc">班次交接签到记录（独立数据库）</p>
+      </div>
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="signInSearch" placeholder="搜索时间/地点/主持...">
+        </div>
+        <button class="btn btn-primary perm-add-btn" data-perm-module="sign-in" onclick="openSignInModal()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          新增签到表
+        </button>
+        <button class="btn btn-ghost btn-trash" onclick="openTrashModal('sign-in')" title="查看已删除的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          回收站
+        </button>
+      </div>
+      <!-- 批量操作栏 -->
+      <div class="batch-bar">
+        <div class="batch-bar-left">
+          <label class="batch-checkbox-all">
+            <input type="checkbox" onchange="toggleSignInSelectAll(this.checked)">
+            <span>全选</span>
+          </label>
+          <span class="batch-count" id="signInBatchCount">已选 0 项</span>
+        </div>
+        <div class="batch-bar-right">
+          <button class="btn btn-danger btn-sm" onclick="batchDeleteSignInSheets()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            删除选中记录
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="clearSignInSelection()">取消选择</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="signInTable">
+          <thead>
+            <tr>
+              <th style="width:32px;"><input type="checkbox" onchange="toggleSignInSelectAll(this.checked)"></th>
+              <th class="sortable sorted-desc" data-key="shift_time" onclick="sortSignInTable('shift_time')" style="width:140px;">班次 <span class="sort-icon"></span></th>
+              <th style="width:120px;">地点</th>
+              <th style="width:100px;">主持</th>
+              <th style="width:80px;">到会人数</th>
+              <th style="width:200px;">签到概况</th>
+              <th class="sortable" data-key="updated_at" onclick="sortSignInTable('updated_at')" style="width:100px;">更新时间 <span class="sort-icon"></span></th>
+              <th style="width:60px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="signInTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== 值班问题 ===== -->
+    <section class="view-section" id="view-duty-issues">
+      <div class="section-header">
+        <h1 class="section-title">值班问题管理</h1>
+        <p class="section-desc">记录和追踪值班期间发现的问题及解决方案（独立数据库）</p>
+      </div>
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="dutyIssueSearch" placeholder="搜索问题归类/解决办法...">
+        </div>
+        <button class="btn btn-primary perm-add-btn" data-perm-module="duty-issue" onclick="openDutyIssueModal()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          新增问题
+        </button>
+        <button class="btn btn-ghost btn-trash" onclick="openTrashModal('duty-issue')" title="查看已删除的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          回收站
+        </button>
+      </div>
+      <div class="batch-bar">
+        <div class="batch-bar-left">
+          <label class="batch-checkbox-all">
+            <input type="checkbox" id="diSelectAll" onchange="toggleDiSelectAll(this.checked)">
+            <span>全选</span>
+          </label>
+          <span class="batch-count" id="diBatchCount">已选 0 项</span>
+        </div>
+        <div class="batch-bar-right">
+          <button class="btn btn-danger btn-sm" onclick="batchDeleteDutyIssues()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            删除选中记录
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="clearDiSelection()">取消选择</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="dutyIssueTable">
+          <thead>
+            <tr>
+              <th style="width:32px;"><input type="checkbox" id="diSelectAllHead" onchange="toggleDiSelectAll(this.checked)"></th>
+              <th style="width:50px;">序号</th>
+              <th class="sortable" data-key="category1" onclick="sortDutyIssueTable('category1')" style="width:100px;">问题归类1 <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="category2" onclick="sortDutyIssueTable('category2')" style="width:100px;">问题归类2 <span class="sort-icon"></span></th>
+              <th style="width:80px;">截图</th>
+              <th style="width:250px;">识别问题过程</th>
+              <th style="width:250px;">解决办法</th>
+              <th class="sortable" data-key="owner_confirm" onclick="sortDutyIssueTable('owner_confirm')" style="width:90px;">Owner confirm <span class="sort-icon"></span></th>
+              <th class="sortable sorted-desc" data-key="updated_at" onclick="sortDutyIssueTable('updated_at')" style="width:100px;">更新时间 <span class="sort-icon"></span></th>
+              <th style="width:60px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="dutyIssueTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== AR交接 ===== -->
+    <section class="view-section" id="view-ar-handovers">
+      <div class="section-header">
+        <h1 class="section-title">AR交接管理</h1>
+        <p class="section-desc">记录和追踪AR交接事项（独立数据库）</p>
+      </div>
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="arHandoverSearch" placeholder="搜索 AR / Owner-Section...">
+        </div>
+        <div class="filter-group">
+          <select id="arHandoverStatusFilter" class="filter-select">
+            <option value="">全部状态</option>
+            <option value="open">待处理</option>
+            <option value="closed">已关闭</option>
+          </select>
+        </div>
+        <button class="btn btn-primary perm-add-btn" data-perm-module="ar-handover" onclick="openArHandoverModal()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          新增AR
+        </button>
+        <button class="btn btn-ghost btn-trash" onclick="openTrashModal('ar-handover')" title="查看已删除的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          回收站
+        </button>
+      </div>
+      <div class="batch-bar">
+        <div class="batch-bar-left">
+          <label class="batch-checkbox-all">
+            <input type="checkbox" id="arSelectAll" onchange="toggleArSelectAll(this.checked)">
+            <span>全选</span>
+          </label>
+          <span class="batch-count" id="arBatchCount">已选 0 项</span>
+        </div>
+        <div class="batch-bar-right">
+          <button class="btn btn-danger btn-sm" onclick="batchDeleteArHandovers()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            删除选中记录
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="clearArSelection()">取消选择</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="arHandoverTable">
+          <thead>
+            <tr>
+              <th style="width:32px;"><input type="checkbox" id="arSelectAllHead" onchange="toggleArSelectAll(this.checked)"></th>
+              <th style="width:50px;">序号</th>
+              <th class="sortable" data-key="date" onclick="sortArHandoverTable('date')" style="width:110px;">Date <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="ar" onclick="sortArHandoverTable('ar')" style="width:250px;">AR <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="owner_section" onclick="sortArHandoverTable('owner_section')" style="width:150px;">Owner-Section <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="due_date" onclick="sortArHandoverTable('due_date')" style="width:110px;">Due date <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="status" onclick="sortArHandoverTable('status')" style="width:90px;">Status <span class="sort-icon"></span></th>
+              <th class="sortable sorted-desc" data-key="updated_at" onclick="sortArHandoverTable('updated_at')" style="width:100px;">更新时间 <span class="sort-icon"></span></th>
+              <th style="width:60px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="arHandoverTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== 用户与权限管理（合并） ===== -->
+    <section class="view-section" id="view-user-mgmt">
+      <div class="section-header">
+        <h1 class="section-title">用户与权限</h1>
+        <p class="section-desc">管理用户账号、角色级权限、用户级权限与登录日志</p>
+      </div>
+
+      <!-- Tab 切换栏 -->
+      <div class="tab-bar" style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;">
+        <button class="tab-btn active" data-tab="users" onclick="switchUserPermTab('users')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--accent-blue);border-bottom:2px solid var(--accent-blue);margin-bottom:-2px;">用户列表</button>
+        <button class="tab-btn" data-tab="role-perm" onclick="switchUserPermTab('role-perm')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-faint);border-bottom:2px solid transparent;margin-bottom:-2px;">角色权限</button>
+        <button class="tab-btn" data-tab="user-perm" onclick="switchUserPermTab('user-perm')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-faint);border-bottom:2px solid transparent;margin-bottom:-2px;">用户权限</button>
+        <button class="tab-btn" data-tab="logs" onclick="switchUserPermTab('logs')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-faint);border-bottom:2px solid transparent;margin-bottom:-2px;">登录日志</button>
+      </div>
+
+      <!-- Tab 1: 用户列表 -->
+      <div class="tab-content" id="tab-users" style="display:block;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="font-size:16px;color:var(--text-primary);">用户账号管理</h2>
+          <button class="btn btn-primary" onclick="openUserModal()">+ 新增用户</button>
+        </div>
+        <div class="table-container">
+          <table class="data-table" id="userMgmtTable">
+            <thead>
+              <tr>
+                <th style="width:50px;">ID</th>
+                <th style="width:120px;">工号</th>
+                <th style="width:120px;">姓名</th>
+                <th style="width:120px;">部门</th>
+                <th style="width:90px;">角色</th>
+                <th style="width:80px;">状态</th>
+                <th style="width:140px;">创建时间</th>
+                <th style="width:140px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="userMgmtTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 2: 角色级权限 -->
+      <div class="tab-content" id="tab-role-perm" style="display:none;">
+        <div style="margin-bottom:12px;">
+          <h2 style="font-size:16px;color:var(--text-primary);">角色级权限配置</h2>
+          <p style="font-size:12px;color:var(--text-faint);">设置每个角色的默认权限，新用户自动继承其角色权限。权限层级：删除 → 编辑 → 查看，勾选高级自动勾选低级</p>
+        </div>
+        <div class="perm-user-selector" style="margin-bottom:12px;">
+          <label>选择角色：</label>
+          <select id="rolePermSelect" onchange="onRolePermChange()">
+            <option value="viewer">查看者 (viewer)</option>
+            <option value="editor">编辑者 (editor)</option>
+          </select>
+          <span style="font-size:12px;color:var(--text-faint);">系统管理员/部门管理员拥有全部权限无需配置；查看者不可编辑/删除，编辑者不可删除（灰色禁用）</span>
+        </div>
+        <div class="table-container" id="rolePermWrap" style="display:none;">
+          <table class="data-table perm-table" id="rolePermTable">
+            <thead>
+              <tr>
+                <th style="width:180px;">交接界面</th>
+                <th style="width:80px;">查看</th>
+                <th style="width:80px;">编辑</th>
+                <th style="width:80px;">删除</th>
+              </tr>
+            </thead>
+            <tbody id="rolePermTableBody"></tbody>
+          </table>
+        </div>
+        <div id="rolePermSaveWrap" style="display:none;margin-top:12px;text-align:right;">
+          <button class="btn btn-primary" onclick="saveRolePermissions()">保存角色权限</button>
+        </div>
+      </div>
+
+      <!-- Tab 3: 用户级权限 -->
+      <div class="tab-content" id="tab-user-perm" style="display:none;">
+        <div style="margin-bottom:12px;">
+          <h2 style="font-size:16px;color:var(--text-primary);">用户级权限配置</h2>
+          <p style="font-size:12px;color:var(--text-faint);">为单个用户单独配置权限，覆盖角色默认权限。用户权限不可超过其角色固有约束（查看者不可编辑/删除，编辑者不可删除）</p>
+        </div>
+        <div class="perm-user-selector">
+          <label>选择用户：</label>
+          <select id="permUserSelect" onchange="onPermUserChange()">
+            <option value="">-- 请选择用户 --</option>
+          </select>
+          <span class="perm-user-info" id="permUserInfo"></span>
+        </div>
+        <div class="perm-table-wrap" id="userPermWrap">
+          <table class="data-table perm-table" id="userPermTable">
+            <thead>
+              <tr>
+                <th style="width:180px;">交接界面</th>
+                <th style="width:80px;">查看</th>
+                <th style="width:80px;">编辑</th>
+                <th style="width:80px;">删除</th>
+                <th style="width:100px;">权限来源</th>
+              </tr>
+            </thead>
+            <tbody id="userPermTableBody"></tbody>
+          </table>
+        </div>
+        <div id="userPermSaveWrap" style="display:none;margin-top:12px;text-align:right;">
+          <button class="btn btn-primary" onclick="saveUserPermissions()">保存用户权限</button>
+        </div>
+      </div>
+
+      <!-- Tab 4: 登录日志 -->
+      <div class="tab-content" id="tab-logs" style="display:none;">
+        <div style="margin-bottom:12px;">
+          <h2 style="font-size:16px;color:var(--text-primary);">登录日志</h2>
+          <p style="font-size:12px;color:var(--text-faint);">最近200条登录/登出记录</p>
+        </div>
+        <div class="table-container">
+          <table class="data-table" id="loginLogTable">
+            <thead>
+              <tr>
+                <th style="width:50px;">ID</th>
+                <th style="width:120px;">工号</th>
+                <th style="width:120px;">姓名</th>
+                <th style="width:100px;">操作</th>
+                <th style="width:160px;">时间</th>
+                <th style="width:120px;">IP地址</th>
+              </tr>
+            </thead>
+            <tbody id="loginLogTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 部门管理 -->
+    <div class="view-section" id="view-dept-mgmt">
+      <div class="page-header">
+        <h1>部门管理</h1>
+        <button class="btn btn-primary" onclick="openDeptModal()">+ 新增部门</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="deptMgmtTable">
+          <thead>
+            <tr>
+              <th style="width:50px;">ID</th>
+              <th style="width:160px;">部门名称</th>
+              <th>描述</th>
+              <th style="width:80px;">排序</th>
+              <th style="width:140px;">创建时间</th>
+              <th style="width:100px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="deptMgmtTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ===== 机台弹窗 ===== -->
+  <div class="modal-overlay" id="machineModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="machineModalTitle">新增机台</h2>
+        <button class="modal-close" onclick="closeModal('machineModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="machineEditId">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>机台名称 <span class="required">*</span></label>
+            <div class="owner-input-wrapper">
+              <input type="text" id="mMachineName" placeholder="如: 光刻机A区" autocomplete="off">
+              <div class="owner-dropdown" id="machineNameDropdown"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>机台状态</label>
+            <select id="mStatus">
+              <option value="running">运行中</option>
+              <option value="down">停机</option>
+              <option value="idle">待机</option>
+              <option value="maintenance">保养维护中</option>
+              <option value="abnormal_pending">异常待处理</option>
+              <option value="repairing">维修中</option>
+              <option value="standby">备用</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>处理状态</label>
+            <select id="mProcessStatus">
+              <option value="pending">待处理</option>
+              <option value="in_progress">处理中</option>
+              <option value="resolved">已解决</option>
+              <option value="closed">已关闭</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>班次</label>
+            <div class="shift-combo">
+              <input type="date" id="mShiftDate">
+              <select id="mShiftType">
+                <option value="白班">白班</option>
+                <option value="夜班">夜班</option>
+              </select>
+            </div>
+            <input type="hidden" id="mShift" value="">
+          </div>
+          <div class="form-group">
+            <label>机台Owner</label>
+            <div class="owner-input-wrapper">
+              <input type="text" id="mOwner" placeholder="机台负责人" autocomplete="off">
+              <div class="owner-dropdown" id="ownerDropdown"></div>
+            </div>
+          </div>
+          <div class="form-group full-width">
+            <label class="label-alarm">机台交接信息</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setAlarmFontSize(this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execAlarmCmd('bold')" title="加粗">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg>
+                </button>
+                <button type="button" class="rich-btn" onclick="execAlarmCmd('italic')" title="斜体">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
+                </button>
+                <button type="button" class="rich-btn" onclick="execAlarmCmd('underline')" title="下划线">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg>
+                </button>
+                <span class="rich-divider"></span>
+                <input type="color" class="rich-color-picker" onchange="execAlarmCmd('foreColor', this.value)" title="文字颜色" value="#d62b2b">
+                <span class="rich-divider"></span>
+                <button type="button" class="rich-btn" onclick="execAlarmCmd('insertUnorderedList')" title="无序列表">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                </button>
+                <button type="button" class="rich-btn" onclick="execAlarmCmd('removeFormat')" title="清除格式">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M5 20h6M13 4l-4 16"/></svg>
+                </button>
+                <span class="rich-hint">选中文字后点击按钮应用格式</span>
+              </div>
+              <div class="rich-editor" id="mAlarmInfo" contenteditable="true" data-placeholder="R：
+A：
+F："></div>
+            </div>
+          </div>
+          <div class="form-group full-width">
+            <label>备注</label>
+            <textarea id="mRemark" rows="3" placeholder="机台特殊说明..."></textarea>
+          </div>
+          <div class="form-group full-width">
+            <label>机台图片异常记录 <span class="upload-badge">支持多图上传 · 剪贴板粘贴</span></label>
+            <div class="image-upload-area" id="machineImageArea">
+              <div class="upload-toolbar">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="pasteFromClipboard()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12l2 2 4-4"/></svg>
+                  从剪贴板粘贴
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('machineFileInput').click()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+                  选择文件（可多选）
+                </button>
+                <input type="file" id="machineFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
+                <span class="image-count-badge" id="imageCountBadge" style="display:none;">0 张</span>
+              </div>
+              <div class="image-gallery" id="machineImageGallery"></div>
+              <div class="upload-hint" id="uploadHint">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                <span>截图后按 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴，或点击上方按钮选择多张图片</span>
+              </div>
+            </div>
+            <input type="hidden" id="mImagePath" value="">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('machineModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveMachine()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 机台详情弹窗 ===== -->
+  <div class="modal-overlay" id="machineDetailModal">
+    <div class="modal modal-detail">
+      <div class="modal-header">
+        <h2>机台详细信息</h2>
+        <button class="modal-close" onclick="closeModal('machineDetailModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="machineDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('machineDetailModal')">关闭</button>
+        <button class="btn btn-primary" id="machineDetailEditBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          编辑此机台
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 长期交接机台弹窗 ===== -->
+  <div class="modal-overlay" id="ltMachineModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="ltMachineModalTitle">新增机台</h2>
+        <button class="modal-close" onclick="closeModal('ltMachineModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="ltMachineEditId">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>机台名称 <span class="required">*</span></label>
+            <div class="owner-input-wrapper">
+              <input type="text" id="ltMMachineName" placeholder="如: 光刻机A区" autocomplete="off">
+              <div class="owner-dropdown" id="ltMachineNameDropdown"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>机台状态</label>
+            <select id="ltMStatus">
+              <option value="running">运行中</option>
+              <option value="down">停机</option>
+              <option value="idle">待机</option>
+              <option value="maintenance">保养维护中</option>
+              <option value="abnormal_pending">异常待处理</option>
+              <option value="repairing">维修中</option>
+              <option value="standby">备用</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>处理状态</label>
+            <select id="ltMProcessStatus">
+              <option value="pending">待处理</option>
+              <option value="in_progress">处理中</option>
+              <option value="resolved">已解决</option>
+              <option value="closed">已关闭</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>预计到期时间</label>
+            <input type="date" id="ltMShiftDate">
+            <input type="hidden" id="ltMShiftType" value="">
+            <input type="hidden" id="ltMShift" value="">
+          </div>
+          <div class="form-group">
+            <label>机台Owner</label>
+            <div class="owner-input-wrapper">
+              <input type="text" id="ltMOwner" placeholder="机台负责人" autocomplete="off">
+              <div class="owner-dropdown" id="ltOwnerDropdown"></div>
+            </div>
+          </div>
+          <div class="form-group full-width">
+            <label class="label-alarm">机台交接信息</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setLtAlarmFontSize(this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execLtAlarmCmd('bold')" title="加粗">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg>
+                </button>
+                <button type="button" class="rich-btn" onclick="execLtAlarmCmd('italic')" title="斜体">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
+                </button>
+                <button type="button" class="rich-btn" onclick="execLtAlarmCmd('underline')" title="下划线">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg>
+                </button>
+                <span class="rich-divider"></span>
+                <input type="color" class="rich-color-picker" onchange="execLtAlarmCmd('foreColor', this.value)" title="文字颜色" value="#d62b2b">
+                <span class="rich-divider"></span>
+                <button type="button" class="rich-btn" onclick="execLtAlarmCmd('insertUnorderedList')" title="无序列表">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                </button>
+                <button type="button" class="rich-btn" onclick="execLtAlarmCmd('removeFormat')" title="清除格式">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M5 20h6M13 4l-4 16"/></svg>
+                </button>
+                <span class="rich-hint">选中文字后点击按钮应用格式</span>
+              </div>
+              <div class="rich-editor" id="ltMAlarmInfo" contenteditable="true" data-placeholder="R：
+A：
+F："></div>
+            </div>
+          </div>
+          <div class="form-group full-width">
+            <label>备注</label>
+            <textarea id="ltMRemark" rows="3" placeholder="机台特殊说明..."></textarea>
+          </div>
+          <div class="form-group full-width">
+            <label>机台图片异常记录 <span class="upload-badge">支持多图上传 · 剪贴板粘贴</span></label>
+            <div class="image-upload-area" id="ltMachineImageArea">
+              <div class="upload-toolbar">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="pasteFromClipboard()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12l2 2 4-4"/></svg>
+                  从剪贴板粘贴
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('ltMachineFileInput').click()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+                  选择文件（可多选）
+                </button>
+                <input type="file" id="ltMachineFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
+                <span class="image-count-badge" id="ltImageCountBadge" style="display:none;">0 张</span>
+              </div>
+              <div class="image-gallery" id="ltMachineImageGallery"></div>
+              <div class="upload-hint" id="ltUploadHint">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                <span>截图后按 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴，或点击上方按钮选择多张图片</span>
+              </div>
+            </div>
+            <input type="hidden" id="ltMImagePath" value="">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('ltMachineModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveLtMachine()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 长期交接机台详情弹窗 ===== -->
+  <div class="modal-overlay" id="ltMachineDetailModal">
+    <div class="modal modal-detail">
+      <div class="modal-header">
+        <h2>机台详细信息</h2>
+        <button class="modal-close" onclick="closeModal('ltMachineDetailModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="ltMachineDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('ltMachineDetailModal')">关闭</button>
+        <button class="btn btn-primary" id="ltMachineDetailEditBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          编辑此机台
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 其他交接弹窗 ===== -->
+  <div class="modal-overlay" id="dailyHandoverModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="dailyHandoverModalTitle">新增其他交接事项</h2>
+        <button class="modal-close" onclick="closeModal('dailyHandoverModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="dhEditId">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label>标题 <span class="required">*</span></label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setDhFontSize('dhTitle', this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execDhCmd('dhTitle','bold')" title="加粗"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDhCmd('dhTitle','italic')" title="斜体"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDhCmd('dhTitle','underline')" title="下划线"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <input type="color" class="rich-color-picker" onchange="execDhCmd('dhTitle','foreColor', this.value)" title="文字颜色" value="#d62b2b">
+              </div>
+              <div class="rich-editor rich-editor-sm" id="dhTitle" contenteditable="true" data-placeholder="交接事项标题"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>优先级</label>
+            <select id="dhPriority">
+              <option value="high">高</option>
+              <option value="medium" selected>中</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>类别</label>
+            <select id="dhCategory">
+              <option value="equipment">设备</option>
+              <option value="process">工艺</option>
+              <option value="quality">质量</option>
+              <option value="safety">安全</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>状态</label>
+            <select id="dhStatus">
+              <option value="open">待处理</option>
+              <option value="in_progress">处理中</option>
+              <option value="resolved">已解决</option>
+              <option value="closed">已关闭</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>创建人</label>
+            <input type="text" id="dhCreatedBy" placeholder="创建人姓名">
+          </div>
+          <div class="form-group">
+            <label>截止日期</label>
+            <input type="date" id="dhDueDate">
+          </div>
+          <div class="form-group full-width">
+            <label>详细内容</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setDhFontSize('dhContent', this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execDhCmd('dhContent','bold')" title="加粗"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDhCmd('dhContent','italic')" title="斜体"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDhCmd('dhContent','underline')" title="下划线"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <span class="rich-divider"></span>
+                <input type="color" class="rich-color-picker" onchange="execDhCmd('dhContent','foreColor', this.value)" title="文字颜色" value="#d62b2b">
+                <span class="rich-divider"></span>
+                <button type="button" class="rich-btn" onclick="execDhCmd('dhContent','insertUnorderedList')" title="无序列表"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDhCmd('dhContent','removeFormat')" title="清除格式"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M5 20h6M13 4l-4 16"/></svg></button>
+                <span class="rich-hint">选中文字后点击按钮应用格式</span>
+              </div>
+              <div class="rich-editor" id="dhContent" contenteditable="true" data-placeholder="交接事项详细说明..."></div>
+            </div>
+          </div>
+          <!-- 截图 -->
+          <div class="form-group full-width">
+            <label>截图 <span class="upload-badge">支持多图上传 · 剪贴板粘贴</span></label>
+            <div class="image-upload-area" id="dhImageArea">
+              <div class="upload-toolbar">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="pasteFromClipboard()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12l2 2 4-4"/></svg>
+                  从剪贴板粘贴
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('dhFileInput').click()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+                  选择文件（可多选）
+                </button>
+                <input type="file" id="dhFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
+                <span class="image-count-badge" id="dhImageCountBadge" style="display:none;">0 张</span>
+              </div>
+              <div class="image-gallery" id="dhImageGallery"></div>
+              <div class="upload-hint" id="dhUploadHint">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                <span>截图后按 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴，或点击上方按钮选择多张图片</span>
+              </div>
+            </div>
+            <input type="hidden" id="dhImagePath" value="">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('dailyHandoverModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveDailyHandover()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 其他交接详情弹窗 ===== -->
+  <div class="modal-overlay" id="dhDetailModal">
+    <div class="modal modal-detail">
+      <div class="modal-header">
+        <h2>其他交接详细信息</h2>
+        <button class="modal-close" onclick="closeModal('dhDetailModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="dhDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('dhDetailModal')">关闭</button>
+        <button class="btn btn-primary" id="dhDetailEditBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          编辑此记录
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== LOT交接弹窗 ===== -->
+  <div class="modal-overlay" id="lotHandoverModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="lotHandoverModalTitle">新增LOT交接</h2>
+        <button class="modal-close" onclick="closeModal('lotHandoverModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="lotHEditId">
+        <input type="hidden" id="lotHFollowUpImages" value="">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Lot ID <span class="required">*</span></label>
+            <input type="text" id="lotHLotId" placeholder="如: LOT-2026-0001">
+          </div>
+          <div class="form-group">
+            <label>状态</label>
+            <select id="lotHStatus">
+              <option value="open">待处理</option>
+              <option value="in_progress">处理中</option>
+              <option value="resolved">已解决</option>
+              <option value="closed">已关闭</option>
+            </select>
+          </div>
+          <div class="form-group full-width">
+            <label>Detail</label>
+            <textarea id="lotHDetail" rows="3" placeholder="详细说明..."></textarea>
+          </div>
+          <div class="form-group full-width">
+            <label>Comment</label>
+            <textarea id="lotHComment" rows="3" placeholder="备注信息..."></textarea>
+          </div>
+          <div class="form-group full-width">
+            <label class="label-alarm">Follow up <span class="upload-badge">支持文字格式编辑 · 剪贴板粘贴图片</span></label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setLotHFontSize(this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execLotHCmd('bold')" title="加粗">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg>
+                </button>
+                <button type="button" class="rich-btn" onclick="execLotHCmd('italic')" title="斜体">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
+                </button>
+                <button type="button" class="rich-btn" onclick="execLotHCmd('underline')" title="下划线">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg>
+                </button>
+                <span class="rich-divider"></span>
+                <input type="color" class="rich-color-picker" onchange="execLotHCmd('foreColor', this.value)" title="文字颜色" value="#d62b2b">
+                <span class="rich-divider"></span>
+                <button type="button" class="rich-btn" onclick="execLotHCmd('insertUnorderedList')" title="无序列表">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                </button>
+                <button type="button" class="rich-btn" onclick="execLotHCmd('removeFormat')" title="清除格式">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M5 20h6M13 4l-4 16"/></svg>
+                </button>
+                <span class="rich-hint">选中文字后点击按钮应用格式</span>
+              </div>
+              <div class="rich-editor" id="lotHFollowUp" contenteditable="true" data-placeholder="输入 Follow up 文字内容..."></div>
+            </div>
+          </div>
+          <div class="form-group full-width">
+            <label>Follow up 图片 <span class="upload-badge">支持多图上传 · 剪贴板粘贴</span></label>
+            <div class="image-upload-area" id="lotHImageArea">
+              <div class="upload-toolbar">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="pasteFromClipboard()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12l2 2 4-4"/></svg>
+                  从剪贴板粘贴
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('lotHFileInput').click()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+                  选择文件（可多选）
+                </button>
+                <input type="file" id="lotHFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
+                <span class="image-count-badge" id="lotHImageCountBadge" style="display:none;">0 张</span>
+              </div>
+              <div class="image-gallery" id="lotHImageGallery"></div>
+              <div class="upload-hint" id="lotHUploadHint">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                <span>截图后按 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴，或点击上方按钮选择多张图片</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('lotHandoverModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveLotHandover()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== LOT交接详情弹窗 ===== -->
+  <div class="modal-overlay" id="lotHandoverDetailModal">
+    <div class="modal modal-detail">
+      <div class="modal-header">
+        <h2>LOT交接详细信息</h2>
+        <button class="modal-close" onclick="closeModal('lotHandoverDetailModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="lotHandoverDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('lotHandoverDetailModal')">关闭</button>
+        <button class="btn btn-primary" id="lotHandoverDetailEditBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          编辑此记录
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 交接签到表弹窗（会议纪要版式） ===== -->
+  <div class="modal-overlay" id="signInModal">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <h2 id="signInModalTitle"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>交接签到表</h2>
+        <button class="modal-close" onclick="closeModal('signInModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="signInEditId">
+        <!-- 会议纪要头部 -->
+        <div class="minutes-header si-meta">
+          <div class="si-meta-field si-field-shift">
+            <span class="si-field-label"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>班次</span>
+            <div class="si-field-control shift-combo">
+              <input type="date" id="siShiftDate" class="minutes-input-date">
+              <select id="siShiftType" class="minutes-input-select">
+                <option value="白班">白班</option>
+                <option value="夜班">夜班</option>
+              </select>
+            </div>
+          </div>
+          <div class="si-meta-field si-field-loc">
+            <span class="si-field-label"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>地点</span>
+            <input type="text" id="siLocation" class="si-input si-input-text" placeholder="会议地点">
+          </div>
+          <div class="si-meta-field si-field-host">
+            <span class="si-field-label"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>主持</span>
+            <select id="siHost" class="si-input si-input-select si-host-select"><option value="">请选择主持人</option></select>
+          </div>
+        </div>
+        <!-- 到会人员签到表 -->
+        <div class="minutes-section">
+          <div class="minutes-section-header">
+            <span class="minutes-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent-blue)"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              到会人员签到
+            </span>
+            <div class="signin-toolbar-inline">
+              <button type="button" class="btn btn-primary btn-sm" onclick="addAttendeeRow()">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                添加人员
+              </button>
+            </div>
+          </div>
+          <div class="table-wrapper minutes-table-wrapper">
+            <table class="data-table minutes-table" id="attendeeTable">
+              <thead>
+                <tr>
+                  <th style="width:50px;">序号</th>
+                  <th>工程师</th>
+                  <th style="width:130px;">Status</th>
+                  <th style="width:50px;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="attendeeTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('signInModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveSignInSheet()">保存签到表</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 签到表详情弹窗 ===== -->
+  <div class="modal-overlay" id="signInDetailModal">
+    <div class="modal modal-detail">
+      <div class="modal-header">
+        <h2>签到表详细信息</h2>
+        <button class="modal-close" onclick="closeModal('signInDetailModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="signInDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('signInDetailModal')">关闭</button>
+        <button class="btn btn-primary" id="signInDetailEditBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          编辑此记录
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 值班问题编辑弹窗 ===== -->
+  <div class="modal-overlay" id="dutyIssueModal">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <h2 id="dutyIssueModalTitle">新增值班问题</h2>
+        <button class="modal-close" onclick="closeModal('dutyIssueModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="diEditId">
+        <div class="form-grid">
+          <!-- 问题归类1 -->
+          <div class="form-group">
+            <label class="label-alarm">问题归类1</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setDiFontSize('diCategory1', this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diCategory1','bold')" title="加粗"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diCategory1','italic')" title="斜体"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diCategory1','underline')" title="下划线"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <input type="color" class="rich-color-picker" onchange="execDiCmd('diCategory1','foreColor', this.value)" title="文字颜色" value="#d62b2b">
+              </div>
+              <div class="rich-editor rich-editor-sm" id="diCategory1" contenteditable="true" data-placeholder="输入问题归类1"></div>
+            </div>
+          </div>
+          <!-- 问题归类2 -->
+          <div class="form-group">
+            <label class="label-alarm">问题归类2</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setDiFontSize('diCategory2', this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diCategory2','bold')" title="加粗"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diCategory2','italic')" title="斜体"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diCategory2','underline')" title="下划线"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <input type="color" class="rich-color-picker" onchange="execDiCmd('diCategory2','foreColor', this.value)" title="文字颜色" value="#d62b2b">
+              </div>
+              <div class="rich-editor rich-editor-sm" id="diCategory2" contenteditable="true" data-placeholder="输入问题归类2"></div>
+            </div>
+          </div>
+          <!-- 识别问题过程 -->
+          <div class="form-group full-width">
+            <label class="label-alarm">识别问题过程</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setDiFontSize('diProblemProcess', this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diProblemProcess','bold')" title="加粗"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diProblemProcess','italic')" title="斜体"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diProblemProcess','underline')" title="下划线"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <span class="rich-divider"></span>
+                <input type="color" class="rich-color-picker" onchange="execDiCmd('diProblemProcess','foreColor', this.value)" title="文字颜色" value="#d62b2b">
+                <span class="rich-divider"></span>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diProblemProcess','insertUnorderedList')" title="无序列表"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diProblemProcess','removeFormat')" title="清除格式"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M5 20h6M13 4l-4 16"/></svg></button>
+                <span class="rich-hint">选中文字后点击按钮应用格式</span>
+              </div>
+              <div class="rich-editor" id="diProblemProcess" contenteditable="true" data-placeholder="详细描述问题识别过程..."></div>
+            </div>
+          </div>
+          <!-- 解决办法 -->
+          <div class="form-group full-width">
+            <label class="label-alarm">解决办法</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setDiFontSize('diSolution', this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diSolution','bold')" title="加粗"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diSolution','italic')" title="斜体"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diSolution','underline')" title="下划线"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <span class="rich-divider"></span>
+                <input type="color" class="rich-color-picker" onchange="execDiCmd('diSolution','foreColor', this.value)" title="文字颜色" value="#d62b2b">
+                <span class="rich-divider"></span>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diSolution','insertUnorderedList')" title="无序列表"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diSolution','removeFormat')" title="清除格式"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M5 20h6M13 4l-4 16"/></svg></button>
+                <span class="rich-hint">选中文字后点击按钮应用格式</span>
+              </div>
+              <div class="rich-editor" id="diSolution" contenteditable="true" data-placeholder="详细描述解决办法..."></div>
+            </div>
+          </div>
+          <!-- Owner confirm -->
+          <div class="form-group">
+            <label class="label-alarm">Owner confirm</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setDiFontSize('diOwnerConfirm', this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diOwnerConfirm','bold')" title="加粗"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diOwnerConfirm','italic')" title="斜体"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execDiCmd('diOwnerConfirm','underline')" title="下划线"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <input type="color" class="rich-color-picker" onchange="execDiCmd('diOwnerConfirm','foreColor', this.value)" title="文字颜色" value="#d62b2b">
+              </div>
+              <div class="rich-editor rich-editor-sm" id="diOwnerConfirm" contenteditable="true" data-placeholder="Owner确认信息"></div>
+            </div>
+          </div>
+          <!-- 截图 -->
+          <div class="form-group full-width">
+            <label>截图 <span class="upload-badge">支持多图上传 · 剪贴板粘贴</span></label>
+            <div class="image-upload-area" id="dutyIssueImageArea">
+              <div class="upload-toolbar">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="pasteFromClipboard()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12l2 2 4-4"/></svg>
+                  从剪贴板粘贴
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('dutyIssueFileInput').click()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+                  选择文件（可多选）
+                </button>
+                <input type="file" id="dutyIssueFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
+                <span class="image-count-badge" id="diImageCountBadge" style="display:none;">0 张</span>
+              </div>
+              <div class="image-gallery" id="dutyIssueImageGallery"></div>
+              <div class="upload-hint" id="diUploadHint">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                <span>截图后按 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴，或点击上方按钮选择多张图片</span>
+              </div>
+            </div>
+            <input type="hidden" id="diImagePath" value="">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('dutyIssueModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveDutyIssue()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 值班问题详情弹窗 ===== -->
+  <div class="modal-overlay" id="dutyIssueDetailModal">
+    <div class="modal modal-detail">
+      <div class="modal-header">
+        <h2>值班问题详细信息</h2>
+        <button class="modal-close" onclick="closeModal('dutyIssueDetailModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="dutyIssueDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('dutyIssueDetailModal')">关闭</button>
+        <button class="btn btn-primary" id="dutyIssueDetailEditBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          编辑此记录
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== AR交接弹窗 ===== -->
+  <div class="modal-overlay" id="arHandoverModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="arHandoverModalTitle">新增AR交接</h2>
+        <button class="modal-close" onclick="closeModal('arHandoverModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="arEditId">
+        <div class="form-grid">
+          <!-- Date -->
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="arDate">
+          </div>
+          <!-- Due date -->
+          <div class="form-group">
+            <label>Due date</label>
+            <input type="date" id="arDueDate">
+          </div>
+          <!-- Status -->
+          <div class="form-group">
+            <label>Status</label>
+            <select id="arStatus">
+              <option value="open">待处理</option>
+              <option value="in_progress">处理中</option>
+              <option value="resolved">已解决</option>
+              <option value="closed">已关闭</option>
+            </select>
+          </div>
+          <!-- AR -->
+          <div class="form-group full-width">
+            <label>AR</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setArFontSize('arContent', this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execArCmd('arContent','bold')" title="加粗"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execArCmd('arContent','italic')" title="斜体"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execArCmd('arContent','underline')" title="下划线"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <span class="rich-divider"></span>
+                <input type="color" class="rich-color-picker" onchange="execArCmd('arContent','foreColor', this.value)" title="文字颜色" value="#d62b2b">
+                <span class="rich-divider"></span>
+                <button type="button" class="rich-btn" onclick="execArCmd('arContent','insertUnorderedList')" title="无序列表"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execArCmd('arContent','removeFormat')" title="清除格式"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M5 20h6M13 4l-4 16"/></svg></button>
+                <span class="rich-hint">选中文字后点击按钮应用格式</span>
+              </div>
+              <div class="rich-editor" id="arContent" contenteditable="true" data-placeholder="输入AR内容..."></div>
+            </div>
+          </div>
+          <!-- Owner-Section -->
+          <div class="form-group full-width">
+            <label>Owner-Section</label>
+            <div class="rich-editor-wrapper">
+              <div class="rich-toolbar">
+                <select class="rich-font-size" onchange="setArFontSize('arOwnerSection', this.value)" title="字体大小">
+                  <option value="2">小</option>
+                  <option value="3" selected>中</option>
+                  <option value="4">大</option>
+                  <option value="5">特大</option>
+                  <option value="6">超大</option>
+                </select>
+                <button type="button" class="rich-btn" onclick="execArCmd('arOwnerSection','bold')" title="加粗"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execArCmd('arOwnerSection','italic')" title="斜体"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rich-btn" onclick="execArCmd('arOwnerSection','underline')" title="下划线"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <input type="color" class="rich-color-picker" onchange="execArCmd('arOwnerSection','foreColor', this.value)" title="文字颜色" value="#d62b2b">
+              </div>
+              <div class="rich-editor rich-editor-sm" id="arOwnerSection" contenteditable="true" data-placeholder="输入Owner-Section..."></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('arHandoverModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveArHandover()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== AR交接详情弹窗 ===== -->
+  <div class="modal-overlay" id="arHandoverDetailModal">
+    <div class="modal modal-detail">
+      <div class="modal-header">
+        <h2>AR交接详细信息</h2>
+        <button class="modal-close" onclick="closeModal('arHandoverDetailModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="arHandoverDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('arHandoverDetailModal')">关闭</button>
+        <button class="btn btn-primary" id="arHandoverDetailEditBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          编辑此记录
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 删除确认弹窗 -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>确认删除</h2>
+        <button class="modal-close" onclick="closeModal('confirmModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-text">确定要删除这条记录吗？此操作不可撤销。</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('confirmModal')">取消</button>
+        <button class="btn btn-danger" id="confirmDeleteBtn">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 通知 -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- 回收站弹窗 -->
+  <div class="modal-overlay" id="trashModal">
+    <div class="modal modal-trash">
+      <div class="modal-header">
+        <h2 id="trashModalTitle">回收站</h2>
+        <button class="modal-close" onclick="closeModal('trashModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="trashModalBody">
+        <div class="trash-empty">暂无已删除的记录</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('trashModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 图片灯箱（支持多图导航） -->
+  <div class="lightbox-overlay" id="imageLightbox" onclick="closeLightbox()">
+    <div class="lightbox-content" onclick="event.stopPropagation()">
+      <img id="lightboxImg" src="" alt="机台图片">
+      <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+      <button class="lightbox-nav lightbox-prev" id="lightboxPrev" onclick="lightboxNav(-1)" style="display:none;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button class="lightbox-nav lightbox-next" id="lightboxNext" onclick="lightboxNav(1)" style="display:none;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <div class="lightbox-counter" id="lightboxCounter" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ===== 用户编辑弹窗 ===== -->
+  <div class="modal-overlay" id="userModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="userModalTitle">新增用户</h2>
+        <button class="modal-close" onclick="closeModal('userModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="userEditId">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>工号 <span class="required">*</span></label>
+            <input type="text" id="userEmployeeId" placeholder="如: A0001">
+          </div>
+          <div class="form-group">
+            <label>姓名 <span class="required">*</span></label>
+            <input type="text" id="userNameInput" placeholder="姓名">
+          </div>
+          <div class="form-group">
+            <label>部门</label>
+            <select id="userDepartment"></select>
+          </div>
+          <div class="form-group">
+            <label>角色</label>
+            <select id="userRole">
+              <option value="viewer">查看者 (viewer)</option>
+              <option value="editor">编辑者 (editor)</option>
+              <option value="dept_admin">部门管理员 (dept_admin)</option>
+              <option value="admin">系统管理员 (admin)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>密码 <span class="required" id="passwordRequired">*</span></label>
+            <input type="password" id="userPassword" placeholder="密码">
+          </div>
+          <div class="form-group">
+            <label>状态</label>
+            <select id="userStatus">
+              <option value="active">启用</option>
+              <option value="disabled">禁用</option>
+            </select>
+          </div>
+        </div>
+        <div id="userSelfHint" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(30,80,224,0.06);border-radius:8px;font-size:12px;color:var(--text-secondary);">
+          <strong>提示：</strong>您正在编辑自己的账号。工号、角色、状态已锁定（不可自行修改），如需变更请联系其他管理员。
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('userModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveUser()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改密码弹窗 -->
+  <div class="modal-overlay" id="changePwdModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>修改密码</h2>
+        <button class="modal-close" onclick="closeModal('changePwdModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>旧密码 <span class="required">*</span></label>
+            <input type="password" id="oldPassword" placeholder="输入当前密码">
+          </div>
+          <div class="form-group">
+            <label>新密码 <span class="required">*</span></label>
+            <input type="password" id="newPassword" placeholder="至少4位">
+          </div>
+          <div class="form-group">
+            <label>确认新密码 <span class="required">*</span></label>
+            <input type="password" id="confirmNewPassword" placeholder="再次输入新密码">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('changePwdModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveNewPassword()">确认修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 转部门弹窗（仅管理员） -->
+  <div class="modal-overlay" id="transferDeptModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>转部门</h2>
+        <button class="modal-close" onclick="closeModal('transferDeptModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="transferUserId">
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>用户</label>
+            <div id="transferUserName" style="padding:10px 12px;background:var(--bg-secondary);border-radius:8px;font-weight:600;color:var(--text-primary);"></div>
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>当前部门</label>
+            <div id="transferCurrentDept" style="padding:10px 12px;background:var(--bg-secondary);border-radius:8px;color:var(--text-secondary);"></div>
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>转至部门 <span class="required">*</span></label>
+            <select id="transferTargetDept"></select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('transferDeptModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveTransferDept()">确认转部门</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 部门管理弹窗 -->
+  <div class="modal-overlay" id="deptModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="deptModalTitle">新增部门</h2>
+        <button class="modal-close" onclick="closeModal('deptModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="deptEditId">
+        <div class="form-group">
+          <label>部门名称 <span class="required">*</span></label>
+          <input type="text" id="deptName" placeholder="如: 制造一部">
+        </div>
+        <div class="form-group">
+          <label>描述</label>
+          <input type="text" id="deptDescription" placeholder="部门描述">
+        </div>
+        <div class="form-group">
+          <label>排序</label>
+          <input type="number" id="deptSortOrder" value="0" min="0">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('deptModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveDept()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js?v=20260822uidropdown"></script>
+</body>
+</html>

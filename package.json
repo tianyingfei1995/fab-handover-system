@@ -1,0 +1,17 @@
+{
+  "name": "fab-handover-system",
+  "version": "1.0.0",
+  "description": "FAB生产日常交接系统",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^9.6.0",
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
+    "multer": "^2.2.0"
+  }
+}
