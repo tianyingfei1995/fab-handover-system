@@ -1,0 +1,23 @@
+[Unit]
+Description=FAB 生产日常交接系统 (Node.js)
+Documentation=https://github.com/tianyingfei1995/fab-handover-system
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/fab-handover-system
+# 若已用 pm2 托管则注释下面 ExecStart；选择一种守护方式即可
+ExecStart=/usr/bin/node /root/fab-handover-system/server.js
+Restart=always
+RestartSec=3
+# 环境变量
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# 资源/安全加固（可选）
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/root/fab-handover-system/data /root/fab-handover-system/public/uploads
+
+[Install]
+WantedBy=multi-user.target
