@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: fab-handover-system
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # PORT 由 Render 自动注入（默认 10000），server.js 已读取 process.env.PORT
