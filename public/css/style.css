@@ -11,7 +11,7 @@
   --bg-hover: #f0f1f6;
   --text-primary: #1a1a2e;
   --text-secondary: #555770;
-  --text-faint: #999bb0;
+  --text-faint: #7a7d93;
   --border: #e2e4ec;
   --border-strong: #cdcfd9;
   --accent-blue: #1e50e0;
@@ -419,11 +419,52 @@ kbd {
   z-index: 1;
 }
 .data-table td {
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
-  vertical-align: top;
+  vertical-align: middle;
 }
+/* 信息块统一固定行高：垂直居中，内容超出以滚动显现，保证各行高度整齐美观 */
+.data-table td .cell-expandable {
+  height: 60px;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  line-height: 1.5;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  word-break: break-word;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border-strong) 70%, var(--accent-blue) 20%) transparent;
+}
+.data-table td .cell-expandable::-webkit-scrollbar { width: 5px; }
+.data-table td .cell-expandable::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+.data-table td .cell-expandable::-webkit-scrollbar-track { background: transparent; }
+/* 机台近期交接 / 机台长期交接：信息块行高加大（在统一基础上更宽松） */
+#machineTable td .cell-expandable,
+#ltMachineTable td .cell-expandable {
+  height: 101px;
+  line-height: 2;
+  padding: 6px 8px;
+}
+/* 富文本（机台交接信息）多行结构：改用正常块级顶部排版，避免 flex 居中导致多行截断错乱 */
+.cell-html {
+  display: block !important;
+  align-items: initial !important;
+  overflow-y: auto;
+}
+.cell-html > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.cell-html br { display: block; content: ''; margin: 4px 0; }
+.cell-html span { line-height: 1.9; }
+.data-table .cell-empty { color: var(--text-faint); }
 .data-table tbody tr { transition: background 0.1s; }
 .data-table tbody tr:hover { background: var(--bg-hover); }
 .data-table tbody tr:last-child td { border-bottom: none; }
@@ -442,6 +483,51 @@ kbd {
 .data-table .sortable { cursor: pointer; user-select: none; }
 .data-table .sortable:hover { color: var(--accent-blue); }
 .sort-icon { display: inline-block; width: 12px; opacity: 0.4; }
+
+/* ─── 批量导入：在线编辑表格控件 ─── */
+#importEditTableBody .import-cell {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+#importEditTableBody .import-cell:hover {
+  border-color: color-mix(in srgb, var(--border-strong) 60%, var(--accent-blue) 40%);
+  background: var(--bg-secondary);
+}
+#importEditTableBody .import-cell:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 20%, transparent);
+}
+#importEditTableBody .import-cell::placeholder { color: var(--text-faint); }
+#importEditTableBody .import-cell[row="select"],
+#importEditTableBody select.import-cell {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 10px 6px;
+  padding-right: 26px;
+  font-weight: 500;
+}
+#importEditTableBody td.import-row-num {
+  color: var(--text-faint);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+#importEditTableBody .btn.btn-ghost.btn-sm { font-size: 12px; padding: 4px 7px; }
 .sort-icon::after { content: "↕"; }
 .sorted-asc .sort-icon::after { content: "↑"; opacity: 1; color: var(--accent-blue); }
 .sorted-desc .sort-icon::after { content: "↓"; opacity: 1; color: var(--accent-blue); }
@@ -589,7 +675,10 @@ kbd {
   background: color-mix(in srgb, var(--bg-tertiary) 76%, var(--text-primary) 10%);
 }
 .handover-card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
-.handover-card-content { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; max-height: 100px; overflow: hidden; }
+.handover-card-content { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; max-height: 96px; overflow-y: auto; line-height: 1.5; word-break: break-word; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.handover-card-content::-webkit-scrollbar { width: 5px; }
+.handover-card-content::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+.handover-card-content::-webkit-scrollbar-track { background: transparent; }
 .handover-card-footer { display: flex; justify-content: space-between; align-items: center; }
 .handover-card-images {
   display: flex; gap: 6px; margin: 8px 0 10px;
@@ -782,6 +871,9 @@ kbd {
 .rich-editor:empty::before {
   content: attr(data-placeholder);
   color: var(--text-faint);
+  font-size: 16px;
+  line-height: 2;
+  white-space: pre-line;
   pointer-events: none;
 }
 .rich-editor-sm { min-height: 60px; }
@@ -1103,6 +1195,11 @@ kbd {
   max-width: 360px;
 }
 @keyframes toastIn { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: translateX(0); } }
+/* 导入结果弹窗的柔和淡入：从右下轻微放大 + 上浮 */
+@keyframes importResultIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
 .toast.success { border-left-color: var(--accent-green); }
 .toast.error { border-left-color: var(--accent-red); }
 .toast.warning { border-left-color: var(--accent-orange); }
@@ -1865,4 +1962,20 @@ input[type="checkbox"] {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ─── 移动端可读性与布局增强 ─────────────────────────── */
+@media (max-width: 768px) {
+  /* 小字号次要文字放大到可读级别 */
+  .nav-tag, .user-role, .trash-item-time, .detail-label,
+  .si-field-label { font-size: 12px !important; }
+  .logo-sub { font-size: 11px !important; }
+  /* 超高弹窗顶部可滚动可达（修复居中裁切） */
+  .modal-overlay { align-items: flex-start; }
+  .modal-overlay .modal { margin: 0 auto; }
+  /* 超小屏(<=480)固定宽字段单列 */
+}
+@media (max-width: 480px) {
+  .si-field-loc, .si-field-host { width: 100%; max-width: 100%; }
+  .si-meta { flex-direction: column; align-items: stretch; }
 }

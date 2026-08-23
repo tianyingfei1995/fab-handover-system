@@ -28,6 +28,14 @@ const SALT_ROUNDS = 10;
 const MODULES = ['dashboard', 'machine', 'daily-handover', 'lt-machine', 'lot-handover', 'sign-in', 'duty-issue', 'ar-handover'];
 const ROLES = ['admin', 'dept_admin', 'editor', 'viewer'];
 
+// ─── 登录防暴力破解 ───────────────────────────────────
+const MAX_LOGIN_ATTEMPTS = 5;            // 连续失败次数上限
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000; // 锁定时长（15 分钟）
+
+// ─── 会话有效期 ──────────────────────────────────────
+const SESSION_MAX_HOURS = 24;            // 令牌有效时长（滑动窗口：距创建超时即失效）
+const loginAttempts = new Map();         // key: `${ip}:${employee_id}` → { count, lockUntil }
+
 // 确保目录存在
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(path.join(UPLOAD_DIR, 'machines'), { recursive: true });
@@ -241,7 +249,7 @@ function initDb() {
     const hashed = bcrypt.hashSync('admin123', SALT_ROUNDS);
     db.prepare('INSERT INTO users (employee_id, name, password, department, role, status, must_change_pwd) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run('admin', '系统管理员', hashed, '', 'admin', 'active', 0);
-    console.log('[初始化] 默认管理员已创建 — 工号: admin, 密码: admin123');
+    console.log('[初始化] 默认管理员已创建（工号: admin）');
   }
 
   // 初始化默认部门
@@ -288,12 +296,35 @@ initDb();
 
 // ─── Express 应用 ─────────────────────────────────────
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// CORS：同源应用默认禁止跨域（页面同源请求不受影响）；如需跨域调用，用环境变量 ALLOWED_ORIGINS 配置白名单（逗号分隔）
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true); // 同源/非浏览器请求，不受 CORS 限制
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(null, false); // 不在白名单的跨域来源：不返回 CORS 头（浏览器将拦截）
+  }
+}));
+// 基础安全响应头
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+app.use(express.json({ limit: '4mb' }));
+app.use(express.urlencoded({ extended: true, limit: '4mb' }));
 
 // 静态文件
-app.use(express.static(path.join(__dirname, 'public')));
+// 开发期优化：静态资源不缓存，避免前端修改后浏览器仍加载旧版本（须置于 express.static 之前生效）
+app.use((req, res, next) => {
+  if (req.path.startsWith('/css/') || req.path.startsWith('/js/') || req.path.startsWith('/lib/')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+  next();
+});
+app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }));
 
 // ─── 文件上传配置 ─────────────────────────────────────
 const storage = multer.diskStorage({
@@ -336,16 +367,54 @@ function genToken() {
 function getUserByToken(token) {
   if (!token) return null;
   const row = db.prepare(`
-    SELECT u.* FROM users u
+    SELECT u.*, t.created_at AS token_created_at FROM users u
     JOIN auth_tokens t ON t.user_id = u.id
     WHERE t.token = ? AND u.status = 'active'
   `).get(token);
-  return row || null;
+  if (!row) return null;
+  // 滑动窗口超时校验（created_at 为服务器本地时间，与 JS 本地时间一致）
+  if (tokenAgeHours(row.token_created_at) >= SESSION_MAX_HOURS) return null;
+  return row;
+}
+
+// 令牌创建时间（本地时区字符串 "YYYY-MM-DD HH:MM:SS"）距当前的时长（小时）
+function tokenAgeHours(createdAtLocal) {
+  const [d, t] = String(createdAtLocal || '').split(' ');
+  if (!d || !t) return Infinity;
+  const [Y, M, D] = d.split('-').map(Number);
+  const [h, m, s] = t.split(':').map(Number);
+  const created = new Date(Y, M - 1, D, h, m, s);
+  if (Number.isNaN(created.getTime())) return Infinity;
+  return (Date.now() - created.getTime()) / 3600000;
 }
 
 function logLogin(userId, employeeId, name, action, ip) {
   db.prepare('INSERT INTO login_logs (user_id, employee_id, name, action, ip_address) VALUES (?, ?, ?, ?, ?)')
     .run(userId || null, employeeId || '', name || '', action, ip || '');
+}
+
+// ─── 登录限流（防暴力破解）───────────────────────────
+// 返回剩余锁定秒数；0 表示未锁定
+function loginLockRemain(key) {
+  const rec = loginAttempts.get(key);
+  if (rec && rec.lockUntil && rec.lockUntil > Date.now()) {
+    return Math.ceil((rec.lockUntil - Date.now()) / 1000);
+  }
+  return 0;
+}
+// 记录一次失败；达到阈值即触发锁定
+function recordLoginFail(key) {
+  const rec = loginAttempts.get(key) || { count: 0, lockUntil: 0 };
+  rec.count += 1;
+  if (rec.count >= MAX_LOGIN_ATTEMPTS) {
+    rec.lockUntil = Date.now() + LOCKOUT_WINDOW_MS;
+    rec.count = 0;
+  }
+  loginAttempts.set(key, rec);
+}
+// 登录成功清除计数
+function recordLoginSuccess(key) {
+  loginAttempts.delete(key);
 }
 
 function getRolePermissions(role) {
@@ -404,6 +473,14 @@ function authMiddleware(req, res, next) {
   if (!user) return res.status(401).json({ error: '未登录或会话过期' });
   req.user = user;
   req.token = token;
+
+  // 首次登录强制改密：仅放行改密/登出/会话/权限相关接口，其余一律拦截
+  if (user.must_change_pwd) {
+    const allowList = ['/api/auth/change-password', '/api/auth/logout', '/api/auth/session', '/api/auth/permissions'];
+    if (!allowList.includes(req.path)) {
+      return res.status(403).json({ error: '首次登录请先修改初始密码', mustChangePwd: true });
+    }
+  }
   next();
 }
 
@@ -427,16 +504,35 @@ function checkModulePermission(module, action) {
 }
 
 // ─── 认证路由 ─────────────────────────────────────────
+// 健康检查（无需鉴权，供监控/负载均衡探活）
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime(), db: (() => { try { db.prepare('SELECT 1').get(); return 'ok'; } catch (e) { return 'error'; } })() });
+});
+
 app.post('/api/auth/login', (req, res) => {
   const { employee_id, password } = req.body;
   if (!employee_id || !password) return res.status(400).json({ error: '请输入工号和密码' });
 
-  const user = db.prepare('SELECT * FROM users WHERE employee_id = ?').get(employee_id);
-  if (!user) return res.status(401).json({ error: '工号不存在' });
-  if (user.status !== 'active') return res.status(403).json({ error: '账号已禁用' });
+  // 限流：同一 IP+工号 连续失败过多则锁定
+  const lockKey = `${req.ip}:${employee_id}`;
+  const remain = loginLockRemain(lockKey);
+  if (remain > 0) {
+    // 锁定期间也不再验证，直接拒绝并提示
+    const mins = Math.ceil(remain / 60);
+    return res.status(429).json({ error: `登录失败次数过多，请 ${mins} 分钟后重试` });
+  }
 
-  const valid = bcrypt.compareSync(password, user.password);
-  if (!valid) return res.status(401).json({ error: '密码错误' });
+  const user = db.prepare('SELECT * FROM users WHERE employee_id = ?').get(employee_id);
+  const valid = user && bcrypt.compareSync(password, user.password);
+  // 统一错误提示，避免暴露工号是否存在（防用户枚举）
+  if (!user || user.status !== 'active' || !valid) {
+    recordLoginFail(lockKey);
+    if (user && user.status !== 'active') {
+      return res.status(403).json({ error: '账号已禁用' });
+    }
+    return res.status(401).json({ error: '工号或密码错误' });
+  }
+  recordLoginSuccess(lockKey);
 
   const token = genToken();
   db.prepare('INSERT INTO auth_tokens (token, user_id) VALUES (?, ?)').run(token, user.id);
@@ -469,7 +565,8 @@ app.get('/api/auth/permissions', authMiddleware, (req, res) => {
 app.put('/api/auth/change-password', authMiddleware, (req, res) => {
   const { old_password, new_password } = req.body;
   if (!old_password || !new_password) return res.status(400).json({ error: '请填写完整' });
-  if (new_password.length < 4) return res.status(400).json({ error: '新密码至少4位' });
+  if (new_password.length < 6) return res.status(400).json({ error: '新密码至少6位' });
+  if (new_password.length > 64) return res.status(400).json({ error: '新密码过长' });
 
   const valid = bcrypt.compareSync(old_password, req.user.password);
   if (!valid) return res.status(400).json({ error: '旧密码错误' });
@@ -500,10 +597,133 @@ app.post('/api/users', authMiddleware, requireRole('admin', 'dept_admin'), (req,
   if (exists) return res.status(400).json({ error: '工号已存在' });
 
   const finalRole = req.user.role === 'dept_admin' ? 'viewer' : (role || 'viewer');
+
+  // 部门管理员唯一性校验：同一部门最多一位部门管理员
+  if (finalRole === 'dept_admin') {
+    const dept = (department || '').trim();
+    if (!dept) return res.status(400).json({ error: '部门管理员必须归属部门，请为该员工指定部门' });
+    const existsDeptAdmin = db.prepare('SELECT id FROM users WHERE department = ? AND role = ?').get(dept, 'dept_admin');
+    if (existsDeptAdmin) return res.status(400).json({ error: `部门“${dept}”已有一位部门管理员，无法再新增部门管理员` });
+  }
+
   const hashed = bcrypt.hashSync(password, SALT_ROUNDS);
   const info = db.prepare('INSERT INTO users (employee_id, name, password, department, role, status) VALUES (?, ?, ?, ?, ?, ?)')
     .run(employee_id, name, hashed, department || '', finalRole, status || 'active');
   res.json({ id: info.lastInsertRowid });
+});
+
+// 批量导入用户（通过表格上传）
+app.post('/api/users/import', authMiddleware, requireRole('admin', 'dept_admin'), (req, res) => {
+  const { rows } = req.body;
+  if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: '没有可导入的数据' });
+  if (rows.length > 500) return res.status(400).json({ error: '单次最多导入 500 条' });
+
+  const me = req.user;
+  const isDeptAdmin = me.role === 'dept_admin';
+  const myDept = (me.department || '').trim();
+  // 批量导入不允许创建系统管理员（仅系统默认 admin 账号保留该角色）
+  const VALID_ROLES = ['viewer', 'editor', 'dept_admin'];
+  const DEPT_ADMIN_ROLES = ['viewer', 'editor']; // 部门管理员只能在本部门内创建普通使用者
+
+  const results = [];
+  let succCount = 0;
+  const seen = new Set();
+
+  const findUser = db.prepare('SELECT id FROM users WHERE employee_id = ?');
+  const findDept = db.prepare('SELECT name FROM departments WHERE name = ?');
+  const insert = db.prepare('INSERT INTO users (employee_id, name, password, department, role, status, must_change_pwd) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const hashedDefault = bcrypt.hashSync('123456', SALT_ROUNDS); // 未填密码时的默认密码
+
+  const fail = (lineNo, employee_id, name, message) => {
+    results.push({ lineNo, employee_id, name, status: 'fail', message });
+  };
+  const ok = (lineNo, employee_id, name) => {
+    results.push({ lineNo, employee_id, name, status: 'ok', message: '导入成功' });
+  };
+
+  rows.forEach((r, idx) => {
+    const lineNo = idx + 2; // 表头占第 1 行，数据从第 2 行开始
+    const employee_id = String(r.employee_id ?? '').trim();
+    const name = String(r.name ?? '').trim();
+    const departmentRaw = String(r.department ?? '').trim();
+    const roleRaw = String(r.role ?? '').trim();
+    const passwordRaw = String(r.password ?? '').trim();
+
+    // 1. 必填校验
+    if (!employee_id) return fail(lineNo, '', name, `第${lineNo}行：工号不能为空`);
+    if (!name) return fail(lineNo, employee_id, '', `第${lineNo}行：工号 ${employee_id} 的姓名为空`);
+
+    // 2. 文件内重复工号
+    if (seen.has(employee_id)) return fail(lineNo, employee_id, name, `第${lineNo}行：工号 ${employee_id} 在本文件中重复`);
+    seen.add(employee_id);
+
+    // 3. 数据库重号
+    if (findUser.get(employee_id)) return fail(lineNo, employee_id, name, `第${lineNo}行：工号 ${employee_id} 已存在`);
+
+    // 4. 部门校验
+    let department;
+    if (isDeptAdmin) {
+      // 部门管理员：只能导入本部门人员；其他部门一律拒绝
+      if (departmentRaw && departmentRaw !== myDept) {
+        return fail(lineNo, employee_id, name, `第${lineNo}行：你是部门管理员，不能导入其他部门（${departmentRaw}）的人员${employee_id ? '（' + employee_id + '）' : ''}`);
+      }
+      department = myDept; // 未填部门或不符时强制归本部门
+    } else {
+      // 系统管理员：部门必须存在于部门表（留空表示无部门）
+      if (departmentRaw && !findDept.get(departmentRaw)) {
+        return fail(lineNo, employee_id, name, `第${lineNo}行：部门“${departmentRaw}”不存在，请先在部门管理中添加`);
+      }
+      department = departmentRaw;
+    }
+
+    // 5. 角色校验
+    let role = 'viewer';
+    if (roleRaw) {
+      if (isDeptAdmin) {
+        if (!DEPT_ADMIN_ROLES.includes(roleRaw)) {
+          return fail(lineNo, employee_id, name, `第${lineNo}行：部门管理员只能导入查看者/编辑者角色（当前为“${roleRaw}”），已拒绝`);
+        }
+        role = roleRaw;
+      } else {
+        if (!VALID_ROLES.includes(roleRaw)) {
+          return fail(lineNo, employee_id, name, `第${lineNo}行：角色“${roleRaw}”非法（可选：viewer/editor/dept_admin），已拒绝`);
+        }
+        role = roleRaw;
+      }
+    }
+
+    // 5.1 部门管理员唯一性校验（每部门仅一位部门管理员）
+    if (role === 'dept_admin') {
+      if (!department) {
+        return fail(lineNo, employee_id, name, `第${lineNo}行：部门管理员必须归属部门，请为该员工指定部门`);
+      }
+      const existsDeptAdmin = db.prepare('SELECT id FROM users WHERE department = ? AND role = ?').get(department, 'dept_admin');
+      if (existsDeptAdmin) {
+        return fail(lineNo, employee_id, name, `第${lineNo}行：部门“${department}”已有一位部门管理员，无法再导入部门管理员`);
+      }
+    }
+
+    // 6. 插入（密码留空则默认 123456 并强制首次登录改密）
+    try {
+      let hashed = hashedDefault;
+      let mustChange = 1;
+      if (passwordRaw) {
+        hashed = bcrypt.hashSync(passwordRaw, SALT_ROUNDS);
+        mustChange = 0;
+      }
+      insert.run(employee_id, name, hashed, department, role, 'active', mustChange);
+      succCount++;
+      ok(lineNo, employee_id, name);
+    } catch (e) {
+      console.error(`[导入] 插入 ${employee_id} 失败:`, e.message);
+      // 不向前端泄露底层异常原文，给出统一友好提示
+      const reason = /UNIQUE/i.test(e.message) ? '工号已存在或存在重复' : '数据保存失败';
+      fail(lineNo, employee_id, name, `第${lineNo}行：${reason}`);
+    }
+  });
+
+  const failedCount = results.filter(x => x.status === 'fail').length;
+  res.json({ success: succCount, failed: failedCount, results });
 });
 
 app.put('/api/users/:id', authMiddleware, requireRole('admin', 'dept_admin'), (req, res) => {
@@ -517,8 +737,14 @@ app.put('/api/users/:id', authMiddleware, requireRole('admin', 'dept_admin'), (r
 
   // 部门管理员不能修改管理员角色用户的任何字段
   const isDeptAdmin = req.user.role === 'dept_admin';
-  if (isDeptAdmin && (u.role === 'admin' || u.role === 'dept_admin')) {
-    return res.status(403).json({ error: '部门管理员无权修改管理员用户' });
+  if (isDeptAdmin) {
+    if (u.role === 'admin' || u.role === 'dept_admin') {
+      return res.status(403).json({ error: '部门管理员无权修改管理员用户' });
+    }
+    // 部门管理员只能修改本部门用户
+    if ((req.user.department || '').trim() !== (u.department || '').trim()) {
+      return res.status(403).json({ error: '部门管理员只能修改本部门的用户' });
+    }
   }
 
   if (name !== undefined) { updates.push('name = ?'); params.push(name); }
@@ -527,6 +753,18 @@ app.put('/api/users/:id', authMiddleware, requireRole('admin', 'dept_admin'), (r
   if (role !== undefined && req.user.role === 'admin') { updates.push('role = ?'); params.push(role); }
   if (status !== undefined && req.user.role === 'admin') { updates.push('status = ?'); params.push(status); }
   if (password) { updates.push('password = ?'); params.push(bcrypt.hashSync(password, SALT_ROUNDS)); }
+
+  // 部门管理员唯一性校验：改角色为 dept_admin 或改部门时，确保目标部门最多一位部门管理员（排除自身）
+  const targetRole = (role !== undefined && req.user.role === 'admin') ? role : u.role;
+  const targetDept = (department !== undefined && !isDeptAdmin) ? department : u.department;
+  if (targetRole === 'dept_admin') {
+    const dept = (targetDept || '').trim();
+    if (!dept) return res.status(400).json({ error: '部门管理员必须归属部门，请为该员工指定部门' });
+    const existsDeptAdmin = db.prepare('SELECT id FROM users WHERE department = ? AND role = ?').get(dept, 'dept_admin');
+    if (existsDeptAdmin && existsDeptAdmin.id !== id) {
+      return res.status(400).json({ error: `部门“${dept}”已有一位部门管理员，无法重复设置` });
+    }
+  }
 
   if (updates.length === 0) return res.json({ success: true });
   params.push(id);
@@ -543,6 +781,10 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin', 'dept_admin'),
   // 部门管理员不能删除管理员角色的用户
   if (req.user.role === 'dept_admin' && (u.role === 'admin' || u.role === 'dept_admin')) {
     return res.status(403).json({ error: '部门管理员无权删除管理员用户' });
+  }
+  // 部门管理员只能删除本部门用户
+  if (req.user.role === 'dept_admin' && (req.user.department || '').trim() !== (u.department || '').trim()) {
+    return res.status(403).json({ error: '部门管理员只能删除本部门的用户' });
   }
 
   db.prepare('DELETE FROM user_permissions WHERE user_id = ?').run(id);
@@ -571,11 +813,20 @@ app.put('/api/users/:id/transfer-dept', authMiddleware, requireRole('dept_admin'
   const { department } = req.body;
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   if (!u) return res.status(404).json({ error: '用户不存在' });
-  // 部门管理员不能转移管理员角色的用户
+  // 部门管理员不能转移管理员角色的用户，且只能在本部门内操作
   if (u.role === 'admin' || u.role === 'dept_admin') {
     return res.status(403).json({ error: '部门管理员无权转移管理员用户' });
   }
-  db.prepare('UPDATE users SET department = ? WHERE id = ?').run(department || '', id);
+  // 部门管理员只能转移本部门的用户，且目标部门必须等于本部门（不允许跨部门调动）
+  const targetDept = (department || '').trim();
+  const myDept = (req.user.department || '').trim();
+  if ((u.department || '').trim() !== myDept) {
+    return res.status(403).json({ error: '部门管理员只能操作本部门的用户' });
+  }
+  if (targetDept && targetDept !== myDept) {
+    return res.status(403).json({ error: '部门管理员不能将用户调到其他部门' });
+  }
+  db.prepare('UPDATE users SET department = ? WHERE id = ?').run(targetDept || myDept, id);
   res.json({ success: true });
 });
 
@@ -584,6 +835,11 @@ app.get('/api/users/:id/permissions', authMiddleware, requireRole('admin', 'dept
   const id = parseInt(req.params.id);
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   if (!u) return res.status(404).json({ error: '用户不存在' });
+
+  // 部门管理员只能读取本部门用户的权限
+  if (req.user.role === 'dept_admin' && (req.user.department || '').trim() !== (u.department || '').trim()) {
+    return res.status(403).json({ error: '部门管理员只能查看本部门的用户权限' });
+  }
 
   const rolePerms = getRolePermissions(u.role);
   const userPerms = db.prepare('SELECT * FROM user_permissions WHERE user_id = ?').all(id);
@@ -776,15 +1032,18 @@ function registerCrudRoutes(opts) {
 
   // 软删除
   app.delete(`${basePath}/:id`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
-    const id = parseInt(req.params.id);
-    db.prepare(`UPDATE ${table} SET deleted_at = datetime('now', 'localtime') WHERE id = ? AND deleted_at IS NULL${deptWhere(req)}`).run(id, ...deptParam(req));
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) return res.status(400).json({ error: '无效的记录ID' });
+    const info = db.prepare(`UPDATE ${table} SET deleted_at = datetime('now', 'localtime') WHERE id = ? AND deleted_at IS NULL${deptWhere(req)}`).run(id, ...deptParam(req));
+    if (info.changes === 0) return res.status(404).json({ error: '记录不存在或无权操作' });
     res.json({ success: true });
   });
 
   // 恢复
   app.patch(`${basePath}/:id/restore`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
     const id = parseInt(req.params.id);
-    db.prepare(`UPDATE ${table} SET deleted_at = NULL WHERE id = ?${deptWhere(req)}`).run(id, ...deptParam(req));
+    const info = db.prepare(`UPDATE ${table} SET deleted_at = NULL WHERE id = ?${deptWhere(req)}`).run(id, ...deptParam(req));
+    if (info.changes === 0) return res.status(404).json({ error: '记录不存在或无权操作' });
     res.json({ success: true });
   });
 
@@ -797,7 +1056,8 @@ function registerCrudRoutes(opts) {
   // 永久删除
   app.delete(`${basePath}/:id/permanent`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
     const id = parseInt(req.params.id);
-    db.prepare(`DELETE FROM ${table} WHERE id = ?${deptWhere(req)}`).run(id, ...deptParam(req));
+    const info = db.prepare(`DELETE FROM ${table} WHERE id = ?${deptWhere(req)}`).run(id, ...deptParam(req));
+    if (info.changes === 0) return res.status(404).json({ error: '记录不存在或无权操作' });
     res.json({ success: true });
   });
 
@@ -830,15 +1090,56 @@ function registerCrudRoutes(opts) {
     });
   }
 
-  // 图片上传
-  app.post(`${basePath}/upload`, authMiddleware, checkModulePermission(module, 'edit'), (req, res) => {
-    upload.array('images', 20)(req, res, (err) => {
-      if (err) return res.status(400).json({ error: err.message });
-      if (!req.files || req.files.length === 0) return res.status(400).json({ error: '未选择文件' });
-      const paths = req.files.map(f => `/uploads/${path.basename(path.dirname(f.path))}/${f.filename}`);
-      res.json({ paths });
-    });
+  // 图片文件头校验：读取文件真实格式，防止以伪装扩展名上传非图片文件
+function sniffImageType(filepath) {
+  const fd = fs.openSync(filepath, 'r');
+  const buf = Buffer.alloc(16);
+  let bytes = 0;
+  try { bytes = fs.readSync(fd, buf, 0, buf.length, 0); } finally { fs.closeSync(fd); }
+  if (bytes < 4) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return 'gif';
+  if (buf[0] === 0x42 && buf[1] === 0x4d) return 'bmp';
+  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  return null;
+}
+
+// 图片上传
+app.post(`${basePath}/upload`, authMiddleware, checkModulePermission(module, 'edit'), (req, res) => {
+  upload.array('images', 20)(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: '未选择文件' });
+
+    const saved = [];   // 已写入的正式路径
+    const toDelete = []; // 需清理的临时文件
+    for (const f of req.files) {
+      const realType = sniffImageType(f.path);
+      if (!realType) {
+        toDelete.push(f.path);
+        continue;
+      }
+      // 统一扩展名为真实类型
+      let finalName = f.filename;
+      const origExt = path.extname(finalName) || '';
+      const safeExt = '.' + realType;
+      if (origExt.toLowerCase() !== safeExt) {
+        finalName = path.basename(finalName, origExt) + safeExt;
+        fs.renameSync(f.path, path.join(path.dirname(f.path), finalName));
+      }
+      saved.push(`/uploads/${path.basename(path.dirname(f.path))}/${finalName}`);
+    }
+
+    // 清理被拒绝的伪装文件
+    for (const p of toDelete) { try { fs.unlinkSync(p); } catch (e) {} }
+
+    // 全部文件均非法则报错
+    if (saved.length === 0) return res.status(400).json({ error: '上传的图片文件无效或不支持该格式' });
+
+    // 部分文件非法（理论上不多见），返回成功保存的路径并附带提示信息
+    res.json({ paths: saved, skipped: toDelete.length ? toDelete.length : undefined });
   });
+});
 }
 
 // ─── 注册各业务模块路由 ─────────────────────────────────
@@ -967,7 +1268,7 @@ app.listen(PORT, () => {
   console.log(`\n┌─────────────────────────────────────────────┐`);
   console.log(`│  FAB 生产日常交接系统已启动                  │`);
   console.log(`│  地址: http://localhost:${PORT}              │`);
-  console.log(`│  默认管理员: admin / admin123              │`);
+  console.log(`│  默认管理员: admin（请及时修改初始密码）   │`);
   console.log(`└─────────────────────────────────────────────┘\n`);
 });
 
@@ -975,3 +1276,14 @@ process.on('SIGINT', () => {
   db.close();
   process.exit(0);
 });
+
+// ─── 周期性清理 ─────────────────────────────────────
+// 每 1 小时清理一次过期令牌与 30 天前的登录日志，防止数据无限膨胀
+setInterval(() => {
+  try {
+    db.prepare("DELETE FROM auth_tokens WHERE (julianday('now') - julianday(created_at)) * 24 > ?").run(SESSION_MAX_HOURS);
+  } catch (e) { /* 忽略清理失败 */ }
+  try {
+    db.prepare("DELETE FROM login_logs WHERE julianday('now') - julianday(login_time) > 30").run();
+  } catch (e) { /* 忽略清理失败 */ }
+}, 3600 * 1000).unref();

@@ -402,7 +402,7 @@
               <th class="sortable" data-key="status" onclick="sortLtMachineTable('status')" style="width:80px;">机台状态 <span class="sort-icon"></span></th>
               <th class="sortable sorted-desc" data-key="shift" onclick="sortLtMachineTable('shift')" style="width:105px;">预计到期时间 <span class="sort-icon"></span></th>
               <th class="sortable" data-key="owner" onclick="sortLtMachineTable('owner')" style="width:80px;">机台Owner <span class="sort-icon"></span></th>
-              <th style="width:350px;">机台交接信息</th>
+              <th style="min-width:300px;">机台交接信息</th>
               <th style="width:100px;">备注</th>
               <th style="width:80px;">异常记录</th>
               <th class="sortable" data-key="process_status" onclick="sortLtMachineTable('process_status')" style="width:70px;">处理状态 <span class="sort-icon"></span></th>
@@ -693,29 +693,33 @@
 
       <!-- Tab 切换栏 -->
       <div class="tab-bar" style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;">
-        <button class="tab-btn active" data-tab="users" onclick="switchUserPermTab('users')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--accent-blue);border-bottom:2px solid var(--accent-blue);margin-bottom:-2px;">用户列表</button>
-        <button class="tab-btn" data-tab="role-perm" onclick="switchUserPermTab('role-perm')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-faint);border-bottom:2px solid transparent;margin-bottom:-2px;">角色权限</button>
-        <button class="tab-btn" data-tab="user-perm" onclick="switchUserPermTab('user-perm')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-faint);border-bottom:2px solid transparent;margin-bottom:-2px;">用户权限</button>
-        <button class="tab-btn" data-tab="logs" onclick="switchUserPermTab('logs')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-faint);border-bottom:2px solid transparent;margin-bottom:-2px;">登录日志</button>
+        <button class="tab-btn user-perm-tab active" data-tab="users" onclick="switchUserPermTab('users')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--accent-blue);border-bottom:2px solid var(--accent-blue);margin-bottom:-2px;">用户列表</button>
+        <button class="tab-btn user-perm-tab" data-tab="role-perm" onclick="switchUserPermTab('role-perm')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-faint);border-bottom:2px solid transparent;margin-bottom:-2px;">角色权限</button>
+        <button class="tab-btn user-perm-tab" data-tab="user-perm" onclick="switchUserPermTab('user-perm')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-faint);border-bottom:2px solid transparent;margin-bottom:-2px;">用户权限</button>
+        <button class="tab-btn user-perm-tab" data-tab="logs" onclick="switchUserPermTab('logs')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-faint);border-bottom:2px solid transparent;margin-bottom:-2px;">登录日志</button>
       </div>
 
       <!-- Tab 1: 用户列表 -->
       <div class="tab-content" id="tab-users" style="display:block;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <h2 style="font-size:16px;color:var(--text-primary);">用户账号管理</h2>
-          <button class="btn btn-primary" onclick="openUserModal()">+ 新增用户</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost" onclick="openImportModal()" id="userImportBtn">📥 批量导入</button>
+            <button class="btn btn-primary" onclick="openUserModal()">+ 新增用户</button>
+          </div>
         </div>
+        <div id="importResultArea" style="display:none;margin-bottom:12px;"></div>
         <div class="table-container">
           <table class="data-table" id="userMgmtTable">
             <thead>
               <tr>
-                <th style="width:50px;">ID</th>
-                <th style="width:120px;">工号</th>
-                <th style="width:120px;">姓名</th>
-                <th style="width:120px;">部门</th>
-                <th style="width:90px;">角色</th>
-                <th style="width:80px;">状态</th>
-                <th style="width:140px;">创建时间</th>
+                <th class="sortable sorted-asc" data-key="id" onclick="sortUserTable('id')" style="width:50px;">ID <span class="sort-icon"></span></th>
+                <th class="sortable" data-key="employee_id" onclick="sortUserTable('employee_id')" style="width:120px;">工号 <span class="sort-icon"></span></th>
+                <th class="sortable" data-key="name" onclick="sortUserTable('name')" style="width:120px;">姓名 <span class="sort-icon"></span></th>
+                <th class="sortable" data-key="department" onclick="sortUserTable('department')" style="width:120px;">部门 <span class="sort-icon"></span></th>
+                <th class="sortable" data-key="role" onclick="sortUserTable('role')" style="width:90px;">角色 <span class="sort-icon"></span></th>
+                <th class="sortable" data-key="status" onclick="sortUserTable('status')" style="width:80px;">状态 <span class="sort-icon"></span></th>
+                <th class="sortable" data-key="created_at" onclick="sortUserTable('created_at')" style="width:140px;">创建时间 <span class="sort-icon"></span></th>
                 <th style="width:140px;">操作</th>
               </tr>
             </thead>
@@ -816,7 +820,7 @@
     <div class="view-section" id="view-dept-mgmt">
       <div class="page-header">
         <h1>部门管理</h1>
-        <button class="btn btn-primary" onclick="openDeptModal()">+ 新增部门</button>
+        <button class="btn btn-primary dept-mgmt-btn" id="deptAddBtn" onclick="openDeptModal()">+ 新增部门</button>
       </div>
       <div class="table-wrap">
         <table class="data-table" id="deptMgmtTable">
@@ -824,8 +828,8 @@
             <tr>
               <th style="width:50px;">ID</th>
               <th style="width:160px;">部门名称</th>
-              <th>描述</th>
-              <th style="width:80px;">排序</th>
+              <th style="width:320px;">描述</th>
+              <th style="width:70px;">排序</th>
               <th style="width:140px;">创建时间</th>
               <th style="width:100px;">操作</th>
             </tr>
@@ -1783,6 +1787,49 @@ F："></div>
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
       </button>
       <div class="lightbox-counter" id="lightboxCounter" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ===== 批量导入用户弹窗 ===== -->
+  <div class="modal-overlay" id="importUserModal">
+    <div class="modal" style="max-width:760px;">
+      <div class="modal-header">
+        <h2>批量导入用户</h2>
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- 权限说明 -->
+        <div style="padding:10px 14px;background:rgba(30,80,224,0.06);border-radius:8px;font-size:13px;color:var(--text-secondary);margin-bottom:14px;" id="importTipArea"></div>
+
+        <!-- 在线编辑表格 -->
+        <div class="form-group">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <label>批量录入（共 <span id="importRowCount">0</span> 行）</label>
+            <button class="btn" type="button" onclick="addImportRow()">＋ 添加一行</button>
+          </div>
+          <div class="table-container" style="max-height:280px;overflow:auto;margin-top:8px;">
+            <table class="data-table">
+              <thead><tr>
+                <th style="width:44px;">行</th>
+                <th>工号 <span style="color:var(--danger,#dc2626);">*</span></th>
+                <th>姓名 <span style="color:var(--danger,#dc2626);">*</span></th>
+                <th>部门</th>
+                <th>角色</th>
+                <th>密码</th>
+                <th style="width:46px;"></th>
+              </tr></thead>
+              <tbody id="importEditTableBody"></tbody>
+            </table>
+          </div>
+          <div style="font-size:12px;color:var(--text-faint);margin-top:6px;" id="importPreviewError"></div>
+          <div style="font-size:12px;color:var(--text-faint);margin-top:4px;">工号、姓名必填；密码留空默认 123456 并强制首次登录改密。</div>
+          <div id="importHintLine" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(30,80,224,0.06);border:1px solid color-mix(in srgb, var(--accent-blue) 30%, var(--border));border-radius:8px;font-size:13px;color:var(--text-secondary);line-height:1.6;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeImportModal()">取消</button>
+        <button class="btn btn-primary" id="importSubmitBtn" onclick="submitImport()" disabled>确认导入</button>
+      </div>
     </div>
   </div>
 

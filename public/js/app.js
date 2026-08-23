@@ -93,22 +93,28 @@ function escapeAttr(str) {
   return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// 用于富文本字段（来自富文本编辑器），剥离危险标签/属性同时保留安全格式
+// 用于富文本字段（来自富文本编辑器），剥离危险标签/协议并保留安全格式
 function sanitizeHtml(html) {
   if (!html) return '';
-  // 使用 DOMParser 解析并清理
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  // 移除 script 标签
-  doc.querySelectorAll('script').forEach(el => el.remove());
-  // 移除所有 on* 事件属性
+  // 彻底移除可执行/危险标签
+  const DANGEROUS = ['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'LINK', 'META', 'BASE', 'FORM', 'SVG', 'MATH', 'TEMPLATE', 'FRAME', 'FRAMESET', 'STYLE'];
+  DANGEROUS.forEach(tag => doc.querySelectorAll(tag).forEach(el => el.remove()));
+  // 清理所有元素属性
   doc.querySelectorAll('*').forEach(el => {
     [...el.attributes].forEach(attr => {
-      if (attr.name.startsWith('on')) {
+      const an = attr.name.toLowerCase();
+      const av = String(attr.value || '').trim();
+      // 移除事件属性
+      if (an.startsWith('on')) { el.removeAttribute(attr.name); return; }
+      // 移除 javascript:/data:/vbscript: 协议的 href/src/action 属性（防 XSS 与外联注入）
+      if (['href', 'src', 'xlink:href', 'action', 'formaction', 'poster', 'background'].includes(an)
+          && /^\s*(javascript|vbscript|data):/i.test(av)) {
         el.removeAttribute(attr.name);
+        return;
       }
-      if (attr.name === 'href' && (attr.value || '').toLowerCase().startsWith('javascript:')) {
-        el.removeAttribute('href');
-      }
+      // 移除 style 中 url()（可引用 data: 或加载资源）
+      if (an === 'style' && /url\s*\(/i.test(av)) { el.removeAttribute(attr.name); return; }
     });
   });
   return doc.body.innerHTML;
@@ -280,6 +286,23 @@ async function apiCall(method, path, body) {
   return _doFetch(method, path, body);
 }
 
+// HTTP 状态码的中文可读文案（后端未返回 error 时的兜底）
+function httpStatusText(status) {
+  const map = {
+    400: '请求参数有误',
+    401: '未登录或登录已过期',
+    403: '无操作权限',
+    404: '请求的资源不存在',
+    409: '数据冲突（可能已存在）',
+    422: '数据校验未通过',
+    500: '服务器内部错误',
+    502: '网关错误',
+    503: '服务暂不可用',
+    504: '网关超时'
+  };
+  return map[status] || `请求失败（HTTP ${status}）`;
+}
+
 async function _doFetch(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   // 添加认证token
@@ -298,7 +321,15 @@ async function _doFetch(method, path, body) {
     if (res.status === 403) {
       throw new Error('无操作权限');
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      // 优先使用后端返回的 error 文案，失败则用清晰的中文状态码兜底
+      let reason = httpStatusText(res.status);
+      try {
+        const errBody = await res.json();
+        if (errBody && errBody.error) reason = errBody.error;
+      } catch (_) { /* 非 JSON 响应，忽略 */ }
+      throw new Error(reason);
+    }
     return await res.json();
   } finally {
     clearTimeout(timeout);
@@ -397,12 +428,17 @@ async function loadUserPermissions() {
 }
 
 function applyPermissions() {
-  // 管理员(系统管理员+部门管理员)显示管理菜单
-  const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'dept_admin');
-  document.querySelectorAll('.admin-only').forEach(el => {
-    el.style.display = isAdmin ? '' : 'none';
-  });
-  // 根据权限控制导航可见性
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const isDeptAdmin = currentUser && currentUser.role === 'dept_admin';
+  const isManager = isAdmin || isDeptAdmin;
+  // 用户管理菜单：系统管理员 + 部门管理员可进入
+  const userMgmtNav = document.querySelector('.nav-item[data-view="user-mgmt"]');
+  if (userMgmtNav) userMgmtNav.style.display = isManager ? '' : 'none';
+  // 部门管理菜单：仅系统管理员可进入
+  const deptMgmtNav = document.querySelector('.nav-item[data-view="dept-mgmt"]');
+  if (deptMgmtNav) deptMgmtNav.style.display = isAdmin ? '' : 'none';
+
+  // 导航可见性
   document.querySelectorAll('.nav-item[data-view]').forEach(nav => {
     const mod = nav.dataset.view;
     if (mod === 'user-mgmt' || mod === 'dept-mgmt') return; // 管理菜单单独处理
@@ -413,11 +449,13 @@ function applyPermissions() {
       nav.style.display = '';
     }
   });
+  // 用户在用户与权限页的 Tab 权限
+  applyUserMgmtTabPermissions();
   // 控制新增按钮显示（需要编辑权限才能新增）
   document.querySelectorAll('.perm-add-btn').forEach(btn => {
     const mod = btn.dataset.permModule;
     const perm = userPermissions[mod];
-    if (isAdmin || (perm && perm.edit)) {
+    if (isManager || (perm && perm.edit)) {
       btn.style.display = '';
     } else {
       btn.style.display = 'none';
@@ -427,6 +465,24 @@ function applyPermissions() {
   applyTableActionPermissions();
 }
 
+// 用户与权限页：角色权限/用户权限/登录日志 Tab 仅系统管理员可见
+function applyUserMgmtTabPermissions() {
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  document.querySelectorAll('.user-perm-tab').forEach(btn => {
+    const tabName = btn.dataset.tab;
+    // 用户列表对管理员和部门管理员可见；其余 Tab 仅系统管理员
+    const shown = (tabName === 'users') ? true : isAdmin;
+    btn.style.display = shown ? '' : 'none';
+  });
+  // 若当前激活了非 users 的 Tab 而当前用户是部门管理员，切回用户列表
+  if (!isAdmin) {
+    const activeTab = document.querySelector('.tab-btn.active');
+    if (activeTab && activeTab.dataset.tab !== 'users') {
+      switchUserPermTab('users');
+    }
+  }
+}
+
 // 权限检查辅助函数
 function hasPermission(module, action) {
   if (!currentUser) return false;
@@ -434,6 +490,28 @@ function hasPermission(module, action) {
   const perm = userPermissions[module];
   if (!perm) return false;
   return perm[action] === true;
+}
+
+// 生成某记录的操作按钮 HTML（按模块权限条件渲染，避免每次渲染后需重新隐藏）
+function actionButtonsHtml(module, id, editFn, deleteFn) {
+  const canEdit = hasPermission(module, 'edit');
+  const canDelete = hasPermission(module, 'delete');
+  let html = '<div class="action-btns">';
+  if (canEdit) {
+    html += `<button class="action-btn edit" onclick="event.stopPropagation(); ${editFn}(${id})" title="编辑">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </button>`;
+  }
+  if (canDelete) {
+    html += `<button class="action-btn delete" onclick="event.stopPropagation(); ${deleteFn}(${id})" title="删除">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    </button>`;
+  }
+  if (!canEdit && !canDelete) {
+    html += '<span class="cell-empty" style="padding:0 8px;">-</span>';
+  }
+  html += '</div>';
+  return html;
 }
 
 // 控制表格中编辑/删除按钮的显示
@@ -563,6 +641,44 @@ function switchUserPermTab(tabName) {
 }
 
 // ===== 用户管理 CRUD =====
+let userSortKey = 'id';
+let userSortDir = 'asc'; // 'asc' | 'desc'
+
+function applyUserSort(list) {
+  const sorted = [...list];
+  sorted.sort((a, b) => {
+    // ID 为数字排序
+    if (userSortKey === 'id') {
+      const na = Number(a.id) || 0;
+      const nb = Number(b.id) || 0;
+      return userSortDir === 'asc' ? na - nb : nb - na;
+    }
+    const va = (a[userSortKey] || '').toString();
+    const vb = (b[userSortKey] || '').toString();
+    if (va < vb) return userSortDir === 'asc' ? -1 : 1;
+    if (va > vb) return userSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+  return sorted;
+}
+
+function sortUserTable(key) {
+  if (userSortKey === key) {
+    userSortDir = userSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    userSortKey = key;
+    userSortDir = 'asc';
+  }
+  // 更新表头样式
+  document.querySelectorAll('#userMgmtTable th.sortable').forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (th.dataset.key === key) {
+      th.classList.add(userSortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    }
+  });
+  renderUserTable();
+}
+
 async function loadUsers() {
   try {
     allUsers = await apiCall('GET', '/users');
@@ -579,7 +695,8 @@ function renderUserTable() {
     tbody.innerHTML = '<tr><td colspan="8" class="empty-state">暂无用户数据</td></tr>';
     return;
   }
-  tbody.innerHTML = allUsers.map(u => {
+  const sortedUsers = applyUserSort(allUsers);
+  tbody.innerHTML = sortedUsers.map(u => {
     const roleBadge = u.role === 'admin' ? 'status-resolved' : (u.role === 'dept_admin' ? 'status-resolved' : (u.role === 'editor' ? 'status-in_progress' : 'status-open'));
     const statusBadge = u.status === 'active' ? 'status-running' : 'status-down';
     const statusLabel = u.status === 'active' ? '启用' : '禁用';
@@ -590,37 +707,16 @@ function renderUserTable() {
     const isSysAdmin = currentUser && currentUser.role === 'admin';
     const isTargetAdmin = u.role === 'admin' || u.role === 'dept_admin';
     const canDelete = !isDefaultAdmin && !isSelf && !(isDeptAdminUser && isTargetAdmin);
-    // 只去掉"系统管理员"(admin)的转部门功能；部门管理员对普通用户转部门仍保留
-    const canTransferDept = !isSysAdmin && !(isDeptAdminUser && isTargetAdmin);
-    // 角色转换下拉：默认管理员和自己不能转换
-    const canConvertRole = !isDefaultAdmin && !isSelf;
+    // 转换部门功能已取消：操作列不再显示"转部门"按钮
+    const canTransferDept = false;
+    // 角色转换下拉已取消：角色列改为只读展示，不在表格中直接切换角色
+    const canConvertRole = false;
     let roleSelectHtml;
-    if (canConvertRole) {
-      const isSysAdmin = currentUser && currentUser.role === 'admin';
-      let roleOptions;
-      if (isSysAdmin) {
-        // 系统管理员可以设置 dept_admin/editor/viewer（admin 角色仅限系统默认账号，不可通过转换新增）
-        roleOptions = `<option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>查看者</option>
-          <option value="editor" ${u.role === 'editor' ? 'selected' : ''}>编辑者</option>
-          <option value="dept_admin" ${u.role === 'dept_admin' ? 'selected' : ''}>部门管理员</option>`;
-      } else {
-        // 部门管理员只能 viewer↔editor
-        roleOptions = `<option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>查看者</option>
-          <option value="editor" ${u.role === 'editor' ? 'selected' : ''}>编辑者</option>`;
-      }
-      roleSelectHtml = `<div class="role-convert-wrap">
-        <select class="role-select" data-user-id="${u.id}" data-original-role="${u.role}" onchange="onRoleSelectChange(${u.id}, this.value, '${u.role}')" title="选择角色">
-          ${roleOptions}
-        </select>
-        <button class="role-save-btn" data-user-id="${u.id}" data-original-role="${u.role}" onclick="saveRoleChange(${u.id}, '${u.role}')" style="display:none;" title="保存角色转换">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          保存
-        </button>
-      </div>`;
-    } else if (isDefaultAdmin) {
+    if (isDefaultAdmin) {
       roleSelectHtml = '<span style="font-size:12px;color:var(--text-faint);">系统管理员</span>';
-    } else if (isSelf) {
-      roleSelectHtml = `<span class="status-badge ${roleBadge}">${ROLE_MAP[u.role] || u.role}</span><span style="font-size:11px;color:var(--text-faint);display:block;">不可自助转换</span>`;
+    } else {
+      // 角色列只读展示（不再提供下拉切换）
+      roleSelectHtml = `<span class="status-badge ${roleBadge}">${ROLE_MAP[u.role] || u.role}</span>`;
     }
     return `
     <tr${isSelf ? ' style="background:rgba(30,80,224,0.04);"' : ''}>
@@ -825,6 +921,314 @@ async function saveUser() {
   }
 }
 
+// ===== 用户批量导入（在线填表） =====
+let importRows = []; // 待提交的行数据
+let importFailures = []; // 采集阶段的错误提示
+let importClipboard = null; // 复制的某一行信息（本窗口内持久），用于新增行自动粘贴
+
+// 返回当前角色所“可见”的部门名称列表
+function getVisibleDeptNames() {
+  if (!currentUser) return [];
+  const all = (departments || []).map(d => (d.name || '').trim()).filter(Boolean);
+  if (currentUser.role === 'admin') return all;
+  if (currentUser.role === 'dept_admin') {
+    const myDept = (currentUser.department || '').trim();
+    return myDept ? [myDept] : all;
+  }
+  return [];
+}
+
+// 部门下拉选项（按角色过滤可见部门）
+function getImportDeptOptions() {
+  const opts = ['<option value="">-- 选择部门 --</option>'];
+  getVisibleDeptNames().forEach(name => {
+    opts.push(`<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`);
+  });
+  return opts.join('');
+}
+
+// 角色下拉选项（按角色过滤可选角色）
+function getImportRoleOptions() {
+  let roles;
+  if (currentUser && currentUser.role === 'dept_admin') {
+    roles = [['viewer', '查看者'], ['editor', '编辑者']];
+  } else {
+    roles = [['viewer', '查看者'], ['editor', '编辑者'], ['dept_admin', '部门管理员']];
+  }
+  return '<option value="">-- 选择角色 --</option>' + roles.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+}
+
+async function openImportModal() {
+  // 仅系统管理员/部门管理员可看到导入入口（再由后端二次校验）
+  if (currentUser && (currentUser.role !== 'admin' && currentUser.role !== 'dept_admin')) {
+    showToast('只有系统管理员或部门管理员才能批量导入', 'error');
+    return;
+  }
+  // 确保部门列表已加载，用于动态列出可见部门
+  if (!departments || departments.length === 0) {
+    try { await loadDepartments(); } catch (e) { /* 忽略，部门列表可能为空 */ }
+  }
+
+  const visibleDepts = getVisibleDeptNames();
+  const deptList = visibleDepts.length
+    ? '“' + visibleDepts.map(escapeHtml).join('、') + '”'
+    : '（暂无已配置部门）';
+
+  let tip;
+  if (currentUser.role === 'dept_admin') {
+    const myDept = escapeHtml(currentUser.department || '未归属');
+    tip = `🔒 您以<b>部门管理员</b>身份导入，仅能导入<b>本部门（${myDept}）</b>人员。<br>
+      <b>【部门】</b>下拉仅提供：${myDept}，其它部门无法选择；留空则自动归入本部门。<br>
+      <b>【角色】</b>下拉仅提供：查看者、编辑者；无法创建管理员角色。`;
+  } else {
+    tip = '🔓 您以<b>系统管理员</b>身份导入，可导入任意已存在部门人员。<br>' +
+      `<b>【部门】</b>下拉提供以下全部部门：${deptList}；留空表示无部门。<br>` +
+      '<b>【角色】</b>下拉提供：查看者、编辑者、部门管理员；不可创建系统管理员(admin)。';
+  }
+  const tipEl = document.getElementById('importTipArea');
+  if (tipEl) tipEl.innerHTML = tip;
+
+  resetImportModal();
+  openModal('importUserModal');
+  addImportRow(); // 默认先生成一行
+}
+
+function closeImportModal() { closeModal('importUserModal'); resetImportModal(); }
+
+// 同步行号与计数
+function refreshImportRowMeta() {
+  const tbody = document.getElementById('importEditTableBody');
+  const rows = tbody ? tbody.querySelectorAll('tr') : [];
+  rows.forEach((tr, i) => {
+    const num = tr.querySelector('.import-row-num');
+    if (num) num.textContent = i + 1;
+  });
+  const cnt = document.getElementById('importRowCount');
+  if (cnt) cnt.textContent = rows.length;
+  const btn = document.getElementById('importSubmitBtn');
+  if (btn) btn.disabled = rows.length === 0;
+}
+
+// 新增一行；若有剪贴板数据则自动粘贴（工号留空，需用户改工号）
+function addImportRow() {
+  const tbody = document.getElementById('importEditTableBody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="import-row-num"></td>
+    <td><input class="row-emp import-cell" placeholder="如 A1001"></td>
+    <td><input class="row-name import-cell" placeholder="姓名"></td>
+    <td><select class="row-dept import-cell">${getImportDeptOptions()}</select></td>
+    <td><select class="row-role import-cell">${getImportRoleOptions()}</select></td>
+    <td><input class="row-pwd import-cell" type="text" placeholder="留空默认123456"></td>
+    <td>
+      <span style="display:inline-flex;gap:4px;">
+        <button class="btn btn-ghost btn-sm" title="复制此行信息" onclick="copyRowToClipboard(this)">⧉</button>
+        <button class="btn btn-ghost btn-sm" title="删除此行" onclick="removeImportRow(this)">✕</button>
+      </span>
+    </td>
+  `;
+  tbody.appendChild(tr);
+
+  // 若已复制过某行，自动粘贴信息到新行（工号留空，需自行填写）
+  if (importClipboard) {
+    const rName = tr.querySelector('.row-name');
+    const rDept = tr.querySelector('.row-dept');
+    const rRole = tr.querySelector('.row-role');
+    const rPwd = tr.querySelector('.row-pwd');
+    if (rName) rName.value = importClipboard.name;
+    // 自动选中部门
+    let pastedDept = '';
+    if (rDept && importClipboard.department && Array.from(rDept.options).some(o => o.value === importClipboard.department)) {
+      rDept.value = importClipboard.department;
+      pastedDept = importClipboard.department;
+    }
+    // 自动选中角色
+    let pastedRole = '';
+    const roleAvailable = !!(rRole && importClipboard.role && Array.from(rRole.options).some(o => o.value === importClipboard.role));
+    if (roleAvailable) {
+      rRole.value = importClipboard.role;
+      pastedRole = importClipboard.role;
+    } else {
+      // 复制的角色不可用：显式置为空（待选择），并标红提醒，避免静默回落到 viewer
+      if (rRole) {
+        rRole.value = '';
+        rRole.style.borderColor = '#dc2626';
+        rRole.style.background = '#fff7f7';
+      }
+    }
+    if (rPwd) rPwd.value = importClipboard.password;
+
+    // 智能提示：提示需改工号；特定情况追加说明
+    let msg = '已自动粘贴所复制行的信息，请修改本行<span style="color:#d97706;font-weight:600;">员工工号</span>。';
+    if (!roleAvailable && importClipboard.role) {
+      msg += '所复制的角色（' + importClipboard.role + '）当前权限不可用，请重新选择角色。';
+    }
+    // 若粘贴的角色为部门管理员且该部门已有一位部门管理员 → 提示不可重复添加
+    if (pastedRole === 'dept_admin' && pastedDept) {
+      const existsDeptAdmin = (allUsers || []).some(u => u.role === 'dept_admin' && u.department === pastedDept);
+      if (existsDeptAdmin) {
+        msg += '提醒：部门“' + pastedDept + '”已有一位部门管理员，再导入将失败。';
+      }
+    }
+    updateImportHint(msg);
+  }
+
+  refreshImportRowMeta();
+}
+
+// 复制指定某一行的信息到剪贴板（本窗口内持久）
+function copyRowToClipboard(btn) {
+  const tr = btn.closest('tr');
+  const name = tr.querySelector('.row-name').value || '';
+  const dept = tr.querySelector('.row-dept').value || '';
+  const role = tr.querySelector('.row-role').value || '';
+  const pwd = tr.querySelector('.row-pwd').value || '';
+  const rowNo = tr.querySelector('.import-row-num').textContent || '当前';
+
+  importClipboard = { name, department: dept, role, password: pwd };
+  let msg = '已复制第 ' + rowNo + ' 行信息，后续点击“添加一行”将自动填入（工号需自行填写）。';
+  updateImportHint(msg);
+  showToast('已复制第 ' + rowNo + ' 行信息');
+}
+
+// 复制上一行已废弃，改用 copyRowToClipboard 复制指定行
+function updateImportHint(msg) {
+  const el = document.getElementById('importHintLine');
+  if (!el) return;
+  el.innerHTML = msg;
+  el.style.display = 'block';
+}
+
+function removeImportRow(btn) {
+  const tr = btn.closest('tr');
+  const tbody = tr.parentElement;
+  if (tbody) tbody.removeChild(tr);
+  refreshImportRowMeta();
+}
+
+function resetImportModal() {
+  importRows = [];
+  importFailures = [];
+  importClipboard = null; // 关闭时清空剪贴板
+  const tbody = document.getElementById('importEditTableBody');
+  if (tbody) tbody.innerHTML = '';
+  const err = document.getElementById('importPreviewError');
+  if (err) { err.textContent = ''; err.style.display = 'none'; }
+  const hint = document.getElementById('importHintLine');
+  if (hint) { hint.innerHTML = ''; hint.style.display = 'none'; }
+  const btn = document.getElementById('importSubmitBtn');
+  if (btn) btn.disabled = true;
+  const area = document.getElementById('importResultArea');
+  if (area) { area.style.display = 'none'; area.innerHTML = ''; }
+  refreshImportRowMeta();
+}
+
+// 从在线表格采集数据并提交
+function collectImportRows() {
+  importRows = [];
+  importFailures = [];
+  const tbody = document.getElementById('importEditTableBody');
+  if (!tbody) return;
+  const rows = tbody.querySelectorAll('tr');
+  rows.forEach((tr, i) => {
+    const emp = (tr.querySelector('.row-emp').value || '').trim();
+    const name = (tr.querySelector('.row-name').value || '').trim();
+    const dept = (tr.querySelector('.row-dept').value || '').trim();
+    const role = (tr.querySelector('.row-role').value || '').trim();
+    const pwd = (tr.querySelector('.row-pwd').value || '').trim();
+    importRows.push({ lineNo: i + 1, employee_id: emp, name, department: dept, role, password: pwd });
+  });
+}
+
+async function submitImport() {
+  collectImportRows();
+  // 前端必填校验
+  importFailures = [];
+  const errEl = document.getElementById('importPreviewError');
+  if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+  let validRows = [];
+  importRows.forEach(r => {
+    if ((!r.employee_id && !r.name) || !r.employee_id) {
+      importFailures.push(`第${r.lineNo}行：缺少工号`);
+    } else if (!r.name) {
+      importFailures.push(`第${r.lineNo}行：缺少姓名`);
+    } else if (!r.role) {
+      importFailures.push(`第${r.lineNo}行：未选择角色`);
+    } else {
+      validRows.push(r);
+    }
+  });
+  if (!validRows.length) {
+    if (errEl && importFailures.length) { errEl.style.display = 'block'; errEl.textContent = '⚠ ' + importFailures.join('；'); }
+    showToast('没有可导入的有效数据', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('importSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = '导入中...';
+  try {
+    const res = await apiCall('POST', '/users/import', { rows: validRows });
+    renderImportResult(res);
+  } catch (e) {
+    showToast('导入失败：' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '确认导入';
+  }
+}
+
+function renderImportResult(res) {
+  // 先关闭弹窗（触发重置，会清空结果区），再以 toast 弹窗展示结果
+  closeImportModal();
+  const okCount = res.success || 0;
+  const failCount = res.failed || 0;
+  const fails = (res.results || []).filter(r => r.status === 'fail');
+
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + (failCount ? 'error' : 'success');
+  toast.style.cssText += ';align-items:flex-start;max-width:420px;';
+
+  let html = failCount
+    ? `<div style="font-weight:700;font-size:14px;color:#dc2626;">⚠ 导入完成：成功 ${okCount} 条，失败 ${failCount} 条</div>`
+    : `<div style="font-weight:700;font-size:14px;color:#16a34a;">✅ 导入完成：成功 ${okCount} 条</div>`;
+
+  if (fails.length) {
+    html += `<div style="margin-top:8px;max-height:160px;overflow:auto;">
+      <div style="font-weight:700;color:#dc2626;font-size:13px;margin-bottom:4px;">❌ 失败原因明细（${fails.length} 条）</div>
+      <ul style="margin:0;padding:0;list-style:none;line-height:1.6;">`;
+    fails.forEach(f => {
+      const lineNo = (f.lineNo !== undefined && f.lineNo !== null) ? f.lineNo : '';
+      const lineTag = lineNo ? `<span style="display:inline-block;background:#dc2626;color:#fff;font-weight:700;border-radius:4px;padding:0 6px;margin-right:6px;font-size:12px;">第 ${lineNo} 行</span>` : '';
+      const who = (f.name || f.employee_id) ? `<strong>${escapeHtml(f.name || '')}</strong>${f.employee_id ? '（工号 ' + escapeHtml(f.employee_id) + '）' : ''}：` : '';
+      html += `<li style="font-size:12.5px;color:#b91c1c;">${lineTag}${who}${escapeHtml(f.message)}</li>`;
+    });
+    html += '</ul></div>';
+  }
+
+  toast.innerHTML = html;
+  // 柔和淡入：右下放大 + 上浮；退出时做透明度/位移过渡（淡入动画结束前先去掉 transition，避免干扰）
+  toast.style.cssText += ';animation:importResultIn .5s ease both;';
+  container.appendChild(toast);
+  // 等淡入动画结束后再加退出过渡，保证淡入/淡出不互相干扰
+  setTimeout(() => {
+    if (!document.contains(toast)) return;
+    toast.style.transition = 'opacity .5s ease, transform .5s ease';
+    toast.style.animation = 'none';
+  }, 520);
+  // 停留 5 秒后柔和淡出（透明并轻微上浮）
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(12px) scale(0.98)';
+    toast.style.pointerEvents = 'none';
+    setTimeout(() => toast.remove(), 500);
+  }, 5000);
+
+  loadUsers(); // 刷新用户列表
+}
+
 async function deleteUser(id) {
   const u = allUsers.find(x => x.id === id);
   if (!u) return;
@@ -835,76 +1239,6 @@ async function deleteUser(id) {
     await loadUsers();
   } catch (e) {
     showToast('删除失败: ' + e.message, 'error');
-  }
-}
-
-// ===== 角色转换 =====
-function onRoleSelectChange(id, newRole, oldRole) {
-  // 不立即转换，只控制保存按钮的显示/隐藏
-  const saveBtn = document.querySelector(`button.role-save-btn[data-user-id="${id}"]`);
-  if (!saveBtn) return;
-  if (newRole !== oldRole) {
-    saveBtn.style.display = 'inline-flex';
-    saveBtn.dataset.newRole = newRole;
-  } else {
-    saveBtn.style.display = 'none';
-  }
-}
-
-async function saveRoleChange(id, oldRole) {
-  const saveBtn = document.querySelector(`button.role-save-btn[data-user-id="${id}"]`);
-  if (!saveBtn) return;
-  const newRole = saveBtn.dataset.newRole;
-  if (!newRole || newRole === oldRole) return;
-  await changeUserRole(id, newRole, oldRole);
-}
-
-async function changeUserRole(id, newRole, oldRole) {
-  const u = allUsers.find(x => x.id === id);
-  if (!u) return;
-  const roleLabels = { admin: '系统管理员', dept_admin: '部门管理员', editor: '编辑者', viewer: '查看者' };
-  const oldLabel = roleLabels[u.role] || u.role;
-  const newLabel = roleLabels[newRole] || newRole;
-
-  let confirmMsg = `确认将用户 ${u.name} (${u.employee_id}) 的角色从【${oldLabel}】转换为【${newLabel}】？\n`;
-
-  // 升级提示
-  if (newRole === 'admin') {
-    confirmMsg += '\n⚠ 转为系统管理员后将获得系统全部权限，请谨慎操作。';
-  }
-  if (newRole === 'dept_admin') {
-    confirmMsg += '\n⚠ 转为部门管理员后，将可管理本部门用户和查看全部模块数据。';
-  }
-  // 降级提示
-  if ((u.role === 'admin' || u.role === 'dept_admin') && newRole !== 'admin' && newRole !== 'dept_admin') {
-    confirmMsg += '\n⚠ 从管理员降级后，该用户将失去管理权限，其自定义权限中超出新角色的部分将被自动清除。';
-  }
-  if (newRole === 'viewer') {
-    confirmMsg += '\n转为查看者后，该用户的编辑和删除权限将被清除。';
-  } else if (newRole === 'editor') {
-    confirmMsg += '\n转为编辑者后，该用户的删除权限将被清除。';
-  }
-
-  // 用户取消确认时，恢复下拉框到原值并隐藏保存按钮
-  if (!confirm(confirmMsg)) {
-    const select = document.querySelector(`select.role-select[data-user-id="${id}"]`);
-    if (select) select.value = oldRole || u.role;
-    const saveBtn = document.querySelector(`button.role-save-btn[data-user-id="${id}"]`);
-    if (saveBtn) saveBtn.style.display = 'none';
-    return;
-  }
-
-  try {
-    const result = await apiCall('PUT', `/users/${id}/role`, { role: newRole });
-    showToast(result.message || '角色转换成功');
-    await loadUsers();
-  } catch (e) {
-    showToast('角色转换失败: ' + e.message, 'error');
-    // API 失败时恢复下拉框并隐藏保存按钮
-    const select = document.querySelector(`select.role-select[data-user-id="${id}"]`);
-    if (select) select.value = oldRole || u.role;
-    const saveBtn = document.querySelector(`button.role-save-btn[data-user-id="${id}"]`);
-    if (saveBtn) saveBtn.style.display = 'none';
   }
 }
 
@@ -974,23 +1308,28 @@ async function openTransferDeptModal(userId) {
   document.getElementById('transferUserName').textContent = `${u.name}（${u.employee_id}）`;
   document.getElementById('transferCurrentDept').textContent = u.department || '未分配';
 
-  // 加载部门列表到下拉框
+  // 加载部门列表到下拉框（部门管理员只能选择本部门）
   const targetSelect = document.getElementById('transferTargetDept');
   targetSelect.innerHTML = '';
+  const isDeptAdmin = currentUser && currentUser.role === 'dept_admin';
+  const selfDept = currentUser && currentUser.department;
   try {
     const depts = await apiCall('GET', '/departments');
-    depts.forEach(d => {
+    const filtered = isDeptAdmin ? depts.filter(d => d.name === selfDept) : depts;
+    filtered.forEach(d => {
       const opt = document.createElement('option');
       opt.value = d.name;
       opt.textContent = d.name;
       if (d.name === u.department) opt.selected = true;
       targetSelect.appendChild(opt);
     });
-    // 添加"未分配"选项
-    const noDeptOpt = document.createElement('option');
-    noDeptOpt.value = '';
-    noDeptOpt.textContent = '（未分配部门）';
-    targetSelect.appendChild(noDeptOpt);
+    // 添加"未分配"选项（部门管理员不能清空部门，不提供）
+    if (!isDeptAdmin) {
+      const noDeptOpt = document.createElement('option');
+      noDeptOpt.value = '';
+      noDeptOpt.textContent = '（未分配部门）';
+      targetSelect.appendChild(noDeptOpt);
+    }
   } catch (e) {
     showToast('加载部门列表失败', 'error');
   }
@@ -1270,29 +1609,34 @@ function updateUserDeptSelect() {
 function renderDeptTable() {
   const tbody = document.getElementById('deptMgmtTableBody');
   if (!tbody) return;
+  // 部门管理的新增/编辑/删除仅系统管理员可用
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const addBtn = document.getElementById('deptAddBtn');
+  if (addBtn) addBtn.style.display = isAdmin ? '' : 'none';
   if (departments.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">暂无部门数据</td></tr>';
     return;
   }
-  tbody.innerHTML = departments.map(d => `
+  tbody.innerHTML = departments.map(d => {
+    const actions = isAdmin ? `
+      <div class="action-btns">
+        <button class="action-btn edit" onclick="editDept(${d.id})" title="编辑">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="action-btn delete" onclick="deleteDept(${d.id})" title="删除">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>` : '<span style="font-size:12px;color:var(--text-faint);">仅管理员可操作</span>';
+    return `
     <tr>
       <td>${d.id}</td>
       <td><strong>${escapeHtml(d.name)}</strong></td>
       <td>${escapeHtml(d.description || '-')}</td>
       <td>${d.sort_order || 0}</td>
       <td>${(d.created_at || '').substring(0, 16)}</td>
-      <td>
-        <div class="action-btns">
-          <button class="action-btn edit" onclick="editDept(${d.id})" title="编辑">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="action-btn delete" onclick="deleteDept(${d.id})" title="删除">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>
-      </td>
-    </tr>
-  `).join('');
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
 }
 
 function openDeptModal(id) {
@@ -1739,7 +2083,7 @@ function filteredMachineIds() {
   const statusFilter = document.getElementById('machineStatusFilter').value;
   let filtered = machines.filter(m => {
     const matchSearch = !search ||
-      m.machine_name.toLowerCase().includes(search) ||
+      (m.machine_name || '').toLowerCase().includes(search) ||
       (m.owner || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     return matchSearch && matchStatus;
@@ -1846,7 +2190,7 @@ function renderMachineTable() {
 
   let filtered = machines.filter(m => {
     const matchSearch = !search ||
-      m.machine_name.toLowerCase().includes(search) ||
+      (m.machine_name || '').toLowerCase().includes(search) ||
       (m.owner || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     return matchSearch && matchStatus;
@@ -1879,14 +2223,7 @@ function renderMachineTable() {
       })()}</td>
       <td><span class="status-badge status-${escapeAttr(m.process_status || 'pending')}">${STATUS_MAP.processStatus[m.process_status || 'pending']}</span></td>
       <td onclick="event.stopPropagation()">
-        <div class="action-btns">
-          <button class="action-btn edit" onclick="editMachine(${m.id})" title="编辑">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="action-btn delete" onclick="deleteMachine(${m.id})" title="删除">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>
+        ${actionButtonsHtml('machine', m.id, 'editMachine', 'deleteMachine')}
       </td>
     </tr>
   `).join('');
@@ -1908,7 +2245,10 @@ function openMachineModal() {
   document.getElementById('mShiftType').value = todayShift;
   syncShiftCombo();
   document.getElementById('mOwner').value = '';
-  document.getElementById('mAlarmInfo').innerHTML = 'R：\nA：\nF：';
+  document.getElementById('mAlarmInfo').innerHTML = '<div style="font-size:13px;line-height:1.9;color:#111;font-weight:400;">'
+    + '<span style="color:#dc2626;font-size:14px;font-weight:700;">R</span><span style="color:#111;">：</span><br>'
+    + '<span style="color:#ea580c;font-size:14px;font-weight:700;">A</span><span style="color:#111;">：</span><br>'
+    + '<span style="color:#2563eb;font-size:14px;font-weight:700;">F</span><span style="color:#111;">：</span></div>';
   document.getElementById('mRemark').value = '';
   resetMachineImage();
   openModal('machineModal');
@@ -1954,7 +2294,7 @@ function editMachine(id) {
   document.getElementById('mShiftType').value = shiftParts.type;
   syncShiftCombo();
   document.getElementById('mOwner').value = m.owner || '';
-  document.getElementById('mAlarmInfo').innerHTML = m.alarm_info || '';
+  document.getElementById('mAlarmInfo').innerHTML = sanitizeHtml(m.alarm_info || '');
   document.getElementById('mRemark').value = m.remark || '';
   loadMachineImages(parseImagePaths(m.image_path));
   openModal('machineModal');
@@ -1969,7 +2309,7 @@ async function saveMachine() {
     process_status: document.getElementById('mProcessStatus').value,
     shift: document.getElementById('mShift').value,
     owner: document.getElementById('mOwner').value.trim(),
-    alarm_info: document.getElementById('mAlarmInfo').innerHTML.trim(),
+    alarm_info: sanitizeHtml(document.getElementById('mAlarmInfo').innerHTML.trim()),
     remark: document.getElementById('mRemark').value.trim(),
     image_path: document.getElementById('mImagePath').value || ''
   };
@@ -2271,14 +2611,7 @@ function renderArHandoverTable() {
       <td><span class="status-badge ${a.status === 'closed' ? 'status-resolved' : (a.status === 'in_progress' ? 'status-in_progress' : (a.status === 'resolved' ? 'status-resolved' : 'status-open'))}">${STATUS_MAP.handover[a.status] || escapeHtml(a.status) || '待处理'}</span></td>
       <td>${escapeHtml((a.updated_at || '').substring(0, 16))}</td>
       <td onclick="event.stopPropagation()">
-        <div class="action-btns">
-          <button class="action-btn edit" onclick="editArHandover(${a.id})" title="编辑">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="action-btn delete" onclick="deleteArHandover(${a.id})" title="删除">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>
+        ${actionButtonsHtml('ar-handover', a.id, 'editArHandover', 'deleteArHandover')}
       </td>
     </tr>
   `).join('');
@@ -2552,7 +2885,7 @@ function filteredLtMachineIds() {
   const statusFilter = statusEl ? statusEl.value : '';
   let filtered = ltMachines.filter(m => {
     const matchSearch = !search ||
-      m.machine_name.toLowerCase().includes(search) ||
+      (m.machine_name || '').toLowerCase().includes(search) ||
       (m.owner || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     return matchSearch && matchStatus;
@@ -2640,7 +2973,7 @@ function renderLtMachineTable() {
 
   let filtered = ltMachines.filter(m => {
     const matchSearch = !search ||
-      m.machine_name.toLowerCase().includes(search) ||
+      (m.machine_name || '').toLowerCase().includes(search) ||
       (m.owner || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     return matchSearch && matchStatus;
@@ -2672,14 +3005,7 @@ function renderLtMachineTable() {
       })()}</td>
       <td><span class="status-badge status-${escapeAttr(m.process_status || 'pending')}">${STATUS_MAP.processStatus[m.process_status || 'pending']}</span></td>
       <td onclick="event.stopPropagation()">
-        <div class="action-btns">
-          <button class="action-btn edit" onclick="editLtMachine(${m.id})" title="编辑">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="action-btn delete" onclick="deleteLtMachine(${m.id})" title="删除">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>
+        ${actionButtonsHtml('lt-machine', m.id, 'editLtMachine', 'deleteLtMachine')}
       </td>
     </tr>
   `).join('');
@@ -2698,7 +3024,10 @@ function openLtMachineModal() {
   document.getElementById('ltMShiftDate').value = '';
   syncLtShiftCombo();
   document.getElementById('ltMOwner').value = '';
-  document.getElementById('ltMAlarmInfo').innerHTML = 'R：\nA：\nF：';
+  document.getElementById('ltMAlarmInfo').innerHTML = '<div style="font-size:13px;line-height:1.9;color:#111;font-weight:400;">'
+    + '<span style="color:#dc2626;font-size:14px;font-weight:700;">R</span><span style="color:#111;">：</span><br>'
+    + '<span style="color:#ea580c;font-size:14px;font-weight:700;">A</span><span style="color:#111;">：</span><br>'
+    + '<span style="color:#2563eb;font-size:14px;font-weight:700;">F</span><span style="color:#111;">：</span></div>';
   document.getElementById('ltMRemark').value = '';
   imageContext = 'ltMachine';
   resetLtMachineImage();
@@ -2735,7 +3064,7 @@ function editLtMachine(id) {
   document.getElementById('ltMShiftDate').value = ltShiftVal ? ltShiftVal.split(/\s+/)[0] : '';
   syncLtShiftCombo();
   document.getElementById('ltMOwner').value = m.owner || '';
-  document.getElementById('ltMAlarmInfo').innerHTML = m.alarm_info || '';
+  document.getElementById('ltMAlarmInfo').innerHTML = sanitizeHtml(m.alarm_info || '');
   document.getElementById('ltMRemark').value = m.remark || '';
   imageContext = 'ltMachine';
   loadLtMachineImages(parseImagePaths(m.image_path));
@@ -2751,7 +3080,7 @@ async function saveLtMachine() {
     process_status: document.getElementById('ltMProcessStatus').value,
     shift: document.getElementById('ltMShift').value,
     owner: document.getElementById('ltMOwner').value.trim(),
-    alarm_info: document.getElementById('ltMAlarmInfo').innerHTML.trim(),
+    alarm_info: sanitizeHtml(document.getElementById('ltMAlarmInfo').innerHTML.trim()),
     remark: document.getElementById('ltMRemark').value.trim(),
     image_path: document.getElementById('ltMImagePath').value || ''
   };
@@ -3023,14 +3352,7 @@ function renderLotHandoverTable() {
       <td><div class="cell-expandable cell-html">${h.follow_up ? sanitizeHtml(h.follow_up) : '-'}${imgBadge}</div></td>
       <td>${(h.updated_at || '').substring(0, 16)}</td>
       <td onclick="event.stopPropagation()">
-        <div class="action-btns">
-          <button class="action-btn edit" onclick="editLotHandover(${h.id})" title="编辑">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="action-btn delete" onclick="deleteLotHandover(${h.id})" title="删除">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>
+        ${actionButtonsHtml('lot-handover', h.id, 'editLotHandover', 'deleteLotHandover')}
       </td>
     </tr>`;
   }).join('');
@@ -3371,14 +3693,7 @@ function renderSignInTable() {
       <td><div class="cell-expandable">${escapeHtml(summary)}</div></td>
       <td>${(s.updated_at || '').substring(0, 16)}</td>
       <td onclick="event.stopPropagation()">
-        <div class="action-btns">
-          <button class="action-btn edit" onclick="editSignInSheet(${s.id})" title="编辑">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="action-btn delete" onclick="deleteSignInSheet(${s.id})" title="删除">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>
+        ${actionButtonsHtml('sign-in', s.id, 'editSignInSheet', 'deleteSignInSheet')}
       </td>
     </tr>`;
   }).join('');
@@ -3856,14 +4171,7 @@ function renderDutyIssueTable() {
       <td><div class="cell-expandable cell-html">${sanitizeHtml(d.owner_confirm) || '-'}</div></td>
       <td>${escapeHtml((d.updated_at || '').substring(0, 16))}</td>
       <td onclick="event.stopPropagation()">
-        <div class="action-btns">
-          <button class="action-btn edit" onclick="editDutyIssue(${d.id})" title="编辑">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="action-btn delete" onclick="deleteDutyIssue(${d.id})" title="删除">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>
+        ${actionButtonsHtml('duty-issue', d.id, 'editDutyIssue', 'deleteDutyIssue')}
       </td>
     </tr>
   `).join('');
@@ -4191,12 +4499,7 @@ function renderDailyHandoverCards() {
           <span>${h.created_at ? h.created_at.substring(0, 10) : ''}</span>
         </div>
         <div class="handover-card-actions">
-          <button class="action-btn edit" onclick="event.stopPropagation(); editDailyHandover(${h.id})" title="编辑">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="action-btn delete" onclick="event.stopPropagation(); deleteDailyHandover(${h.id})" title="删除">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
+          ${actionButtonsHtml('daily-handover', h.id, 'editDailyHandover', 'deleteDailyHandover')}
         </div>
       </div>
     </div>
@@ -4372,14 +4675,14 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
   const list = listMap[type];
   const removedIdx = list.findIndex(x => x.id == id);
   const removedItem = removedIdx >= 0 ? list.splice(removedIdx, 1)[0] : null;
-  // 立即重新渲染
-  if (type === 'machine') { _cachedFilteredMachineIds = null; renderMachineTable(); }
+  // 立即重新渲染（同步清理对应模块的多选集合）
+  if (type === 'machine') { selectedMachineIds.delete(id); _cachedFilteredMachineIds = null; renderMachineTable(); }
   else if (type === 'daily-handover') renderDailyHandoverCards();
-  else if (type === 'lt-machine') { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); }
-  else if (type === 'lot-handover') renderLotHandoverTable();
-  else if (type === 'sign-in') renderSignInTable();
-  else if (type === 'duty-issue') renderDutyIssueTable();
-  else if (type === 'ar-handover') { _cachedArFilteredIds = null; renderArHandoverTable(); }
+  else if (type === 'lt-machine') { selectedLtMachineIds.delete(id); _cachedLtFilteredMachineIds = null; renderLtMachineTable(); }
+  else if (type === 'lot-handover') { selectedLotHIds.delete(id); renderLotHandoverTable(); }
+  else if (type === 'sign-in') { selectedSignInIds.delete(id); renderSignInTable(); }
+  else if (type === 'duty-issue') { selectedDiIds.delete(id); renderDutyIssueTable(); }
+  else if (type === 'ar-handover') { selectedArIds.delete(id); _cachedArFilteredIds = null; renderArHandoverTable(); }
 
   // 后台同步服务器（软删除）
   try {
@@ -4795,7 +5098,7 @@ async function pasteFromClipboard() {
       }
     }
   } catch (e) {
-    console.log('Clipboard API 读取失败:', e.message);
+    console.error('Clipboard API 读取失败:', e.message);
   }
 
   if (blobs.length > 0) {
@@ -4832,8 +5135,6 @@ function handlePasteEvent(e) {
     return;
   }
 
-  console.log('[Paste] 粘贴事件触发, clipboardData:', e.clipboardData);
-
   const imageBlobs = [];
 
   // 方式1: 通过 clipboardData.items 获取
@@ -4841,12 +5142,10 @@ function handlePasteEvent(e) {
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      console.log(`[Paste] item[${i}].type =`, item.kind, item.type);
       if (item.kind === 'file' && item.type.startsWith('image/')) {
         const blob = item.getAsFile();
         if (blob) {
           imageBlobs.push(blob);
-          console.log('[Paste] 获取到图片:', blob.name, blob.size, 'bytes');
         }
       }
     }
@@ -4859,7 +5158,6 @@ function handlePasteEvent(e) {
       const file = files[i];
       if (file.type.startsWith('image/')) {
         imageBlobs.push(file);
-        console.log('[Paste] 通过files获取图片:', file.name, file.size, 'bytes');
       }
     }
   }
@@ -4874,8 +5172,6 @@ function handlePasteEvent(e) {
       setTimeout(() => area.classList.remove('paste-active'), 400);
     }
     uploadMachineImages(imageBlobs);
-  } else {
-    console.log('[Paste] 剪贴板中未找到图片数据');
   }
 }
 
@@ -5047,7 +5343,7 @@ async function init() {
   const loggedIn = await checkSession();
   if (!loggedIn) return;
   await loadDepartments();
-  await Promise.all([loadMachines(), loadLtMachines(), loadDailyHandovers(), loadLotHandovers(), loadSignInEngineers(), loadSignInSheets(), loadArHandovers(), loadDashboard()]);
+  await Promise.all([loadMachines(), loadLtMachines(), loadDailyHandovers(), loadLotHandovers(), loadSignInEngineers(), loadSignInSheets(), loadDutyIssues(), loadArHandovers(), loadDashboard()]);
   // 数据加载完成后应用表格权限控制
   applyTableActionPermissions();
 }
