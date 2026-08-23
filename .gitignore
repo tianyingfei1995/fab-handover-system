@@ -1,11 +1,14 @@
 # 依赖
 node_modules/
 
-# 运行时数据（数据库 / 上传图片 / 日志）
-data/
+# 运行时数据（上传图片 / 日志）
 public/uploads/
 *.log
 npm-debug.log*
+
+# 数据库：默认忽略，但保留 fab.db 随项目发布
+data/*
+!data/fab.db
 
 # 环境变量（可能含密钥）
 .env
