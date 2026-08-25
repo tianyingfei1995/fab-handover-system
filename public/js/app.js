@@ -129,6 +129,123 @@ function showToast(msg, type = 'success') {
   setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2800);
 }
 
+// ─── 图片清理通知 ───
+async function checkCleanupNotice() {
+  // 系统管理员和部门管理员需要检查
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'dept_admin')) return;
+  try {
+    const data = await _doFetch('GET', '/api/cleanup-notice');
+    if (data.needNotify) {
+      showCleanupNoticeModal(data);
+    }
+  } catch (e) {
+    // 静默失败，不影响正常使用
+  }
+}
+
+function showCleanupNoticeModal(data) {
+  const isAdmin = data.role === 'admin';
+  const daysLeft = data.daysLeft;
+  
+  let dateText = data.nextCleanupDate;
+  if (daysLeft === 0) {
+    dateText += '（今天执行）';
+  } else if (daysLeft === 1) {
+    dateText += '（明天执行）';
+  } else {
+    dateText += `（还有 ${daysLeft} 天）`;
+  }
+  
+  // 设置图标颜色和标题
+  const icon = document.getElementById('cleanupNoticeIcon');
+  const titleEl = document.getElementById('cleanupNoticeTitle');
+  if (data.notifyLevel === 'urgent') {
+    icon.setAttribute('stroke', '#ef4444');
+    titleEl.textContent = isAdmin ? '⚠️ 半年度图片清理即将执行' : '🚨 紧急：半年度数据清理通知';
+  } else {
+    icon.setAttribute('stroke', '#f59e0b');
+    titleEl.textContent = '📢 半年度图片清理预告';
+  }
+  
+  // 显示对应角色的内容
+  const adminContent = document.getElementById('cleanupNoticeAdminContent');
+  const deptContent = document.getElementById('cleanupNoticeDeptContent');
+  const adminFooter = document.getElementById('cleanupNoticeAdminFooter');
+  const deptFooter = document.getElementById('cleanupNoticeDeptFooter');
+  
+  if (isAdmin) {
+    adminContent.style.display = 'block';
+    deptContent.style.display = 'none';
+    adminFooter.style.display = 'flex';
+    deptFooter.style.display = 'none';
+    document.getElementById('cleanupNoticeDateAdmin').textContent = dateText;
+    document.getElementById('cleanupNoticeScannedAdmin').textContent = data.totalScanned;
+    document.getElementById('cleanupNoticeOrphanAdmin').textContent = data.orphanCount;
+    document.getElementById('cleanupNoticeSizeAdmin').textContent = formatBytes(data.freedBytes);
+  } else {
+    // 部门管理员
+    adminContent.style.display = 'none';
+    deptContent.style.display = 'block';
+    adminFooter.style.display = 'none';
+    deptFooter.style.display = 'flex';
+    document.getElementById('cleanupNoticeDateDept').textContent = dateText;
+    document.getElementById('cleanupNoticeDeptName').textContent = data.department || '本部门';
+    document.getElementById('cleanupNoticeOrphanDept').textContent = data.orphanCount;
+    document.getElementById('cleanupNoticeSizeDept').textContent = formatBytes(data.freedBytes);
+  }
+  
+  openModal('cleanupNoticeModal');
+}
+
+function closeCleanupNoticeModal() {
+  closeModal('cleanupNoticeModal');
+}
+
+// 系统管理员 - 同意清理
+async function approveCleanup() {
+  try {
+    await _doFetch('POST', '/api/cleanup-notice/approve');
+    showToast('已确认同意，系统将按期执行清理', 'success');
+  } catch (e) {
+    showToast('操作失败：' + (e.message || '未知错误'), 'error');
+    return;
+  }
+  closeCleanupNoticeModal();
+}
+
+// 系统管理员 - 稍后处理
+function dismissCleanupNoticeAdmin() {
+  // 只是关闭弹窗，下次登录还会提醒
+  showToast('已关闭，下次登录时会再次提醒', 'info');
+  closeCleanupNoticeModal();
+}
+
+// 部门管理员 - 已知悉同意
+async function acknowledgeCleanupDept() {
+  try {
+    await _doFetch('POST', '/api/cleanup-notice/dept-acknowledge');
+    showToast('已确认知悉，感谢您的配合', 'success');
+  } catch (e) {
+    showToast('操作失败：' + (e.message || '未知错误'), 'error');
+    return;
+  }
+  closeCleanupNoticeModal();
+}
+
+// 部门管理员 - 有异议（关闭弹窗但不标记已确认，还会再提醒）
+function dismissCleanupNoticeDept() {
+  showToast('如对清理内容有疑问，请联系系统管理员', 'info');
+  closeCleanupNoticeModal();
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 // 带撤销按钮的 Toast
 function showToastWithUndo(msg, undoCallback, type = 'success') {
   const container = document.getElementById('toastContainer');
@@ -5346,5 +5463,7 @@ async function init() {
   await Promise.all([loadMachines(), loadLtMachines(), loadDailyHandovers(), loadLotHandovers(), loadSignInEngineers(), loadSignInSheets(), loadDutyIssues(), loadArHandovers(), loadDashboard()]);
   // 数据加载完成后应用表格权限控制
   applyTableActionPermissions();
+  // 管理员检查清理预告通知
+  checkCleanupNotice();
 }
 init();

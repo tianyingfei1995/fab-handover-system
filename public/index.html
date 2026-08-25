@@ -1887,6 +1887,76 @@ F："></div>
     </div>
   </div>
 
+  <!-- 图片清理通知弹窗 -->
+  <div class="modal-overlay" id="cleanupNoticeModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 style="display:flex;align-items:center;gap:8px;">
+          <svg id="cleanupNoticeIcon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f59e0b" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span id="cleanupNoticeTitle">图片清理预告</span>
+        </h2>
+        <button class="modal-close" onclick="closeCleanupNoticeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- 系统管理员文案 -->
+        <div id="cleanupNoticeAdminContent" style="display:none;">
+          <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+            <div style="font-weight:600;color:#92400e;margin-bottom:6px;font-size:14px;">
+              ⚠️ 系统将于 <strong id="cleanupNoticeDateAdmin" style="color:#dc2626;"></strong> 执行半年度图片清理
+            </div>
+            <div style="font-size:13px;color:#78350f;line-height:1.6;">
+              清理对象为<strong>半年前已被删除记录对应的图片文件</strong>。这些记录在回收站中已满半年，其关联图片将被永久删除，<strong>删除后无法恢复</strong>。
+            </div>
+          </div>
+          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+            <div style="font-size:13px;color:#166534;margin-bottom:8px;font-weight:600;">📊 清理预览</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;color:#15803d;">
+              <div>扫描文件总数：<span id="cleanupNoticeScannedAdmin" style="font-weight:600;"></span> 个</div>
+              <div>待清理文件数：<span id="cleanupNoticeOrphanAdmin" style="font-weight:600;color:#dc2626;"></span> 个</div>
+              <div style="grid-column:span 2;">预计释放空间：<span id="cleanupNoticeSizeAdmin" style="font-weight:600;"></span></div>
+            </div>
+          </div>
+          <div style="font-size:13px;color:#6b7280;line-height:1.6;">
+            <strong style="color:#374151;">说明：</strong>仍在正常使用的记录图片不会被清理，仅清理回收站中已满半年的已删除记录关联图片。请确认后点击"同意清理"。
+          </div>
+        </div>
+        <!-- 部门管理员文案 -->
+        <div id="cleanupNoticeDeptContent" style="display:none;">
+          <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+            <div style="font-weight:600;color:#991b1b;margin-bottom:6px;font-size:14px;">
+              🚨 紧急通知：系统将于 <strong id="cleanupNoticeDateDept" style="color:#dc2626;"></strong> 执行半年度数据清理
+            </div>
+            <div style="font-size:13px;color:#7f1d1d;line-height:1.6;">
+              系统将清理<strong>半年前已被删除记录对应的图片文件</strong>。以下为您所在部门（<strong id="cleanupNoticeDeptName" style="color:#dc2626;"></strong>）的待清理数据，删除后<strong>无法恢复</strong>。
+            </div>
+          </div>
+          <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+            <div style="font-size:13px;color:#9a3412;margin-bottom:6px;font-weight:600;">📋 您需要确认</div>
+            <div style="font-size:13px;color:#7c2d12;line-height:1.6;">
+              您部门是否有半年前删除的重要数据需要恢复？如有，请尽快从回收站恢复，或联系系统管理员协助。恢复后该图片将不再被清理。
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;background:#f9fafb;border-radius:8px;padding:10px 14px;">
+            <div>本部门待清理：<strong id="cleanupNoticeOrphanDept" style="color:#dc2626;"></strong> 个</div>
+            <div>释放空间：<strong id="cleanupNoticeSizeDept"></strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="cleanupNoticeAdminFooter" style="display:none;">
+        <button class="btn btn-ghost" onclick="dismissCleanupNoticeAdmin()">稍后处理</button>
+        <button class="btn btn-primary" onclick="approveCleanup()">同意清理</button>
+      </div>
+      <div class="modal-footer" id="cleanupNoticeDeptFooter" style="display:none;">
+        <button class="btn btn-ghost" onclick="dismissCleanupNoticeDept()">我有异议</button>
+        <button class="btn btn-primary" onclick="acknowledgeCleanupDept()">已知悉，同意清理</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 修改密码弹窗 -->
   <div class="modal-overlay" id="changePwdModal">
     <div class="modal modal-sm">

@@ -1245,6 +1245,689 @@ app.get('/api/sign-in-members', authMiddleware, (req, res) => {
 
 
 
+// ─── 孤儿图片清理 ─────────────────────────────────────
+// 定期扫描 uploads 目录，删除数据库中不再引用的图片文件
+const CLEANUP_LOG_DIR = path.join(__dirname, 'data', 'cleanup-logs');
+fs.mkdirSync(CLEANUP_LOG_DIR, { recursive: true });
+
+// 图片清理周期（天）— 删除满半年的记录对应图片将被清理
+const CLEANUP_INTERVAL_DAYS = 182;
+
+// 各表的图片字段配置（包含软删除记录，因为回收站恢复后图片还要用）
+const IMAGE_TABLES = [
+  { table: 'machines',       field: 'image_path'        },
+  { table: 'lt_machines',    field: 'image_path'        },
+  { table: 'lot_handovers',  field: 'follow_up_images'  },
+  { table: 'duty_issues',    field: 'image_path'        },
+  { table: 'daily_handovers', field: 'image_path'       },
+];
+
+// 收集有效记录（未删除）引用的图片
+// department 为 null 时收集全部
+function collectActiveReferencedImages(department = null) {
+  const referenced = new Set();
+  const deptCondition = department ? ` AND department = ?` : '';
+  const deptParam = department ? [department] : [];
+  for (const { table, field } of IMAGE_TABLES) {
+    try {
+      const rows = db.prepare(
+        `SELECT ${field} FROM ${table} WHERE deleted_at IS NULL${deptCondition}`
+      ).all(...deptParam);
+      for (const row of rows) {
+        const val = row[field];
+        if (!val || !val.trim()) continue;
+        const paths = val.split(',').map(p => p.trim()).filter(p => p);
+        for (const p of paths) {
+          const cleanPath = p.replace(/^\/uploads\//, '');
+          if (cleanPath) referenced.add(cleanPath);
+        }
+      }
+    } catch (e) {
+      console.error(`[清理] 读取 ${table}.${field} 失败:`, e.message);
+    }
+  }
+  return referenced;
+}
+
+// 收集"软删除已满半年"的记录对应的图片
+// department 为 null 时收集全部部门
+// 返回 Map: 图片相对路径 -> { table, recordId, department, deletedAt }
+function collectExpiredDeletedImages(department = null) {
+  const result = new Map();
+  const deptCondition = department ? ` AND department = ?` : '';
+  const deptParam = department ? [department] : [];
+  const cutoffDate = new Date(Date.now() - CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000)
+    .toISOString().replace('T', ' ').slice(0, 19);
+  
+  for (const { table, field } of IMAGE_TABLES) {
+    try {
+      const rows = db.prepare(
+        `SELECT id, department, deleted_at, ${field} FROM ${table} 
+         WHERE deleted_at IS NOT NULL AND deleted_at <= ?${deptCondition}`
+      ).all(cutoffDate, ...deptParam);
+      
+      for (const row of rows) {
+        const val = row[field];
+        if (!val || !val.trim()) continue;
+        const paths = val.split(',').map(p => p.trim()).filter(p => p);
+        for (const p of paths) {
+          const cleanPath = p.replace(/^\/uploads\//, '');
+          if (cleanPath && !result.has(cleanPath)) {
+            result.set(cleanPath, {
+              table,
+              recordId: row.id,
+              department: row.department,
+              deletedAt: row.deleted_at,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`[清理] 查询 ${table} 过期删除记录失败:`, e.message);
+    }
+  }
+  return result;
+}
+
+// 收集真正的孤儿图片（不被任何记录引用，包括软删除记录）
+// 这些是编辑记录时被移除的图片，或者上传后没用到的图片
+// department 参数：如果指定，则只返回该部门记录中曾经出现过的孤儿图片
+//                  如果为 null，返回全部孤儿图片
+function collectTrueOrphanImages(department = null) {
+  const allFiles = scanUploadDir();
+  const allReferenced = new Set();
+  
+  // 收集所有被引用的图片（包括软删除）
+  for (const { table, field } of IMAGE_TABLES) {
+    try {
+      const rows = db.prepare(`SELECT ${field} FROM ${table}`).all();
+      for (const row of rows) {
+        const val = row[field];
+        if (!val || !val.trim()) continue;
+        const paths = val.split(',').map(p => p.trim()).filter(p => p);
+        for (const p of paths) {
+          const cleanPath = p.replace(/^\/uploads\//, '');
+          if (cleanPath) allReferenced.add(cleanPath);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+  
+  // 找出孤儿
+  let orphans = allFiles.filter(f => !allReferenced.has(f.relPath));
+  
+  // 如果指定了部门，进一步过滤：只保留该部门曾经引用过的
+  // （从历史记录中无法准确判断，所以这里只做标记——真正的孤儿不按部门划分）
+  // 部门管理员看到的孤儿 = 全部孤儿中的一部分，但无法精确归属
+  // 解决方案：部门管理员不清理真正的孤儿，只清理"过期软删除记录的图片"
+  // 系统管理员清理全部（过期软删 + 孤儿）
+  if (department) {
+    // 部门管理员不处理无主孤儿，只处理过期软删记录的图片
+    orphans = [];
+  }
+  
+  return orphans;
+}
+
+// 递归扫描 uploads 目录下的所有图片文件
+function scanUploadDir(dir = UPLOAD_DIR, baseDir = UPLOAD_DIR) {
+  const files = [];
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (e) {
+    return files;
+  }
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...scanUploadDir(fullPath, baseDir));
+    } else if (entry.isFile()) {
+      // 只处理图片格式
+      if (/\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(entry.name)) {
+        const relPath = path.relative(baseDir, fullPath).split(path.sep).join('/');
+        files.push({ relPath, fullPath });
+      }
+    }
+  }
+  return files;
+}
+
+// 写入清理日志
+function writeCleanupLog(result) {
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const scope = result.department ? `-${result.department}` : '';
+  const logFile = path.join(CLEANUP_LOG_DIR, `cleanup-${dateStr}${scope}.log`);
+  const lines = [];
+  const scopeText = result.department ? `[${result.department}]` : '[全局]';
+  lines.push(`===== 图片清理报告 ${scopeText} =====`);
+  lines.push(`时间: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+  lines.push(`清理范围: ${result.department || '全部部门'}`);
+  lines.push(`扫描文件总数: ${result.totalScanned}`);
+  lines.push(`数据库引用数(有效记录): ${result.totalReferenced}`);
+  lines.push(`删除文件总数: ${result.deletedCount}`);
+  lines.push(`  - 过期软删记录图片: ${result.expiredDeletedCount || 0} 个`);
+  lines.push(`  - 无主孤儿图片: ${result.trueOrphanCount || 0} 个`);
+  lines.push(`释放磁盘空间: ${(result.freedBytes / 1024 / 1024).toFixed(2)} MB`);
+  if (result.deletedFiles && result.deletedFiles.length > 0) {
+    lines.push('');
+    lines.push('--- 删除文件列表 ---');
+    for (const f of result.deletedFiles) {
+      lines.push(`  ${f.path} (${(f.size / 1024).toFixed(1)} KB)`);
+    }
+  }
+  lines.push('');
+  try {
+    fs.appendFileSync(logFile, lines.join('\n'), 'utf8');
+  } catch (e) {
+    console.error('[清理] 写入日志失败:', e.message);
+  }
+  return lines.join('\n');
+}
+
+// 主清理函数
+// dryRun=true 时只扫描不删除，返回将要删除的列表
+// department 为 null 时清理全部（系统管理员），为部门名时只清理该部门过期软删记录的图片
+// 清理范围说明：
+//   - 系统管理员：过期软删记录图片（全部部门）+ 真正的孤儿图片（无任何数据库引用）
+//   - 部门管理员：仅本部门过期软删记录对应的图片（不清理无主孤儿，因无法确定归属）
+function cleanupOrphanImages(dryRun = false, department = null) {
+  const result = {
+    totalScanned: 0,
+    totalReferenced: 0,
+    deletedCount: 0,
+    freedBytes: 0,
+    deletedFiles: [],
+    skippedDirs: [],
+    department: department,
+    expiredDeletedCount: 0,   // 过期软删记录图片数
+    trueOrphanCount: 0,       // 真正孤儿图片数
+  };
+
+  try {
+    // 1. 收集"过期软删除记录"的图片（按部门过滤）
+    const expiredDeletedMap = collectExpiredDeletedImages(department);
+    result.expiredDeletedCount = expiredDeletedMap.size;
+
+    // 2. 收集"真正孤儿"图片（仅系统管理员清理）
+    let trueOrphans = [];
+    if (!department) {
+      trueOrphans = collectTrueOrphanImages(null);
+      result.trueOrphanCount = trueOrphans.length;
+    }
+
+    // 3. 扫描磁盘文件（用于计算统计和获取文件大小）
+    const files = scanUploadDir();
+    result.totalScanned = files.length;
+
+    // 构建磁盘文件路径 -> fullPath 的映射
+    const fileMap = new Map();
+    for (const f of files) {
+      fileMap.set(f.relPath, f.fullPath);
+    }
+
+    // 统计有效引用数（用于展示）
+    const activeRefs = collectActiveReferencedImages(department);
+    result.totalReferenced = activeRefs.size;
+
+    // 4. 合并待删除列表，去重
+    const toDelete = new Map(); // relPath -> { size, source: 'expired'|'orphan', meta? }
+
+    // 4a. 过期软删记录的图片
+    for (const [relPath, meta] of expiredDeletedMap) {
+      if (!toDelete.has(relPath)) {
+        const fullPath = fileMap.get(relPath);
+        let fileSize = 0;
+        if (fullPath) {
+          try {
+            const stat = fs.statSync(fullPath);
+            fileSize = stat.size;
+          } catch (_) {}
+        }
+        toDelete.set(relPath, { size: fileSize, source: 'expired', meta });
+      }
+    }
+
+    // 4b. 真正的孤儿图片（仅系统管理员）
+    if (!department) {
+      for (const orphan of trueOrphans) {
+        if (!toDelete.has(orphan.relPath)) {
+          let fileSize = 0;
+          try {
+            const stat = fs.statSync(orphan.fullPath);
+            fileSize = stat.size;
+          } catch (_) {}
+          toDelete.set(orphan.relPath, { size: fileSize, source: 'orphan' });
+        }
+      }
+    }
+
+    // 5. 执行删除（或只统计，dryRun）
+    for (const [relPath, info] of toDelete) {
+      const fullPath = fileMap.get(relPath);
+      if (!fullPath) continue; // 磁盘上不存在就跳过
+
+      if (!dryRun) {
+        try {
+          fs.unlinkSync(fullPath);
+          result.deletedCount++;
+          result.freedBytes += info.size;
+          result.deletedFiles.push({
+            path: relPath,
+            size: info.size,
+            source: info.source,
+            department: info.meta ? info.meta.department : null,
+          });
+        } catch (e) {
+          console.error(`[清理] 删除失败 ${relPath}:`, e.message);
+        }
+      } else {
+        result.deletedCount++;
+        result.freedBytes += info.size;
+        result.deletedFiles.push({
+          path: relPath,
+          size: info.size,
+          source: info.source,
+          department: info.meta ? info.meta.department : null,
+        });
+      }
+    }
+
+    // 6. 清理空子目录（自底向上）——仅系统管理员全量清理时执行
+    if (!dryRun && !department) {
+      cleanupEmptyDirs(UPLOAD_DIR);
+    }
+
+    // 7. 写日志（仅实际执行时）
+    if (!dryRun) {
+      const logText = writeCleanupLog(result);
+      const scope = department ? `[${department}]` : '[全局]';
+      console.log(`[清理] ${scope}孤儿图片清理完成:`, 
+        `扫描${result.totalScanned}个, 删除${result.deletedCount}个`,
+        `(过期软删${result.expiredDeletedCount}个 + 孤儿${result.trueOrphanCount}个),`,
+        `释放${(result.freedBytes/1024/1024).toFixed(2)}MB`);
+    }
+
+  } catch (e) {
+    console.error('[清理] 孤儿图片清理异常:', e.message);
+  }
+
+  return result;
+}
+
+// 递归清理空子目录
+function cleanupEmptyDirs(dir) {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        cleanupEmptyDirs(path.join(dir, entry.name));
+      }
+    }
+    // 重新读取（子目录可能已被删空）
+    const remaining = fs.readdirSync(dir);
+    if (remaining.length === 0 && dir !== UPLOAD_DIR) {
+      try {
+        fs.rmdirSync(dir);
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+// ─── 定时清理：服务启动后每满半年执行一次 ───
+// 注：setTimeout 最大只支持约 24.8 天，所以采用每日轮询方式
+// 用一个标记文件记录服务首次启动时间，作为周期计算的基准
+const START_MARKER_FILE = path.join(CLEANUP_LOG_DIR, '.first-start-time');
+
+function getServiceStartDate() {
+  // 读取或创建服务启动基准时间
+  try {
+    if (fs.existsSync(START_MARKER_FILE)) {
+      const ts = parseInt(fs.readFileSync(START_MARKER_FILE, 'utf8').trim(), 10);
+      if (!isNaN(ts)) return new Date(ts);
+    }
+  } catch (_) {}
+  // 首次启动，写入当前时间作为基准
+  const now = new Date();
+  try {
+    fs.writeFileSync(START_MARKER_FILE, String(now.getTime()), 'utf8');
+  } catch (_) {}
+  return now;
+}
+
+function getLastCleanupTime() {
+  // 从日志文件中找到最近一次清理时间
+  try {
+    const logFiles = fs.readdirSync(CLEANUP_LOG_DIR)
+      .filter(f => f.startsWith('cleanup-') && f.endsWith('.log'))
+      .sort()
+      .reverse();
+    if (logFiles.length === 0) return null;
+    // 从文件名提取日期（cleanup-YYYY-MM-DD.log）
+    const match = logFiles[0].match(/cleanup-(\d{4}-\d{2}-\d{2})\.log/);
+    if (match) return new Date(match[1] + 'T00:00:00');
+  } catch (_) {}
+  return null;
+}
+
+function checkAndRunYearlyCleanup() {
+  const now = new Date();
+  const startDate = getServiceStartDate();
+  const lastCleanup = getLastCleanupTime();
+
+  // 计算距离上次清理（或启动）是否已满半年
+  const referenceDate = lastCleanup || startDate;
+  const intervalMs = CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
+  const elapsed = now.getTime() - referenceDate.getTime();
+
+  if (elapsed >= intervalMs) {
+    console.log('[清理] 距上次清理已满半年，开始执行孤儿图片清理...');
+    cleanupOrphanImages(false);
+  }
+}
+
+function scheduleYearlyCleanup() {
+  const startDate = getServiceStartDate();
+  const lastCleanup = getLastCleanupTime();
+  
+  // 启动时先检查一次（防止服务停了很久刚启动时错过）
+  checkAndRunYearlyCleanup();
+  
+  // 每 24 小时检查一次
+  const ONE_DAY = 86400000;
+  setInterval(checkAndRunYearlyCleanup, ONE_DAY);
+  
+  // 计算下次执行时间（用于日志提示）
+  const now = new Date();
+  const referenceDate = lastCleanup || startDate;
+  // 从参考日期起算，下一个满半年的日子
+  let nextRun = new Date(referenceDate.getTime() + CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
+  // 如果 nextRun 已经过了（说明刚执行过或服务停了很久），就按现在 + 半年算
+  if (nextRun.getTime() <= now.getTime()) {
+    nextRun = new Date(now.getTime() + CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
+  }
+  
+  console.log(`[清理] 半年度清理已调度（启动基准: ${startDate.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })}）`);
+  console.log(`[清理] 下次自动清理约: ${nextRun.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+}
+
+// 服务启动时调度清理
+scheduleYearlyCleanup();
+
+// 清理预告通知（分阶段）
+const NOTIFY_ADVANCE_DAYS = 7;      // 提前 7 天开始通知系统管理员
+const ESCALATE_DAYS_BEFORE = 3;     // 到期前 3 天未处理则升级通知部门管理员
+const CLEANUP_STATUS_FILE = path.join(CLEANUP_LOG_DIR, '.cleanup-notice-status.json');
+
+// 计算距离下次清理还有多少天
+function getDaysUntilNextCleanup() {
+  const now = new Date();
+  const startDate = getServiceStartDate();
+  const lastCleanup = getLastCleanupTime();
+  const referenceDate = lastCleanup || startDate;
+  const intervalMs = CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
+  const nextRunMs = referenceDate.getTime() + intervalMs;
+  const diffMs = nextRunMs - now.getTime();
+  return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+}
+
+// 读取通知状态
+function getCleanupNoticeStatus() {
+  const defaultStatus = {
+    targetDate: null,       // 本次对应的清理日期
+    adminApproved: false,   // 系统管理员是否同意
+    adminApprovedAt: null,
+    adminApprovedBy: null,
+    deptAdminsDismissed: {}, // 部门管理员已读记录 { dept: { userId: true } }
+  };
+  try {
+    if (fs.existsSync(CLEANUP_STATUS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CLEANUP_STATUS_FILE, 'utf8'));
+      return { ...defaultStatus, ...data };
+    }
+  } catch (_) {}
+  return defaultStatus;
+}
+
+// 写入通知状态
+function saveCleanupNoticeStatus(status) {
+  try {
+    fs.writeFileSync(CLEANUP_STATUS_FILE, JSON.stringify(status, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// 计算下次清理日期
+function getNextCleanupDate() {
+  const startDate = getServiceStartDate();
+  const lastCleanup = getLastCleanupTime();
+  const referenceDate = lastCleanup || startDate;
+  const intervalMs = CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
+  return new Date(referenceDate.getTime() + intervalMs);
+}
+
+// 清理预告 API（所有管理员登录后检查，根据角色返回不同内容）
+app.get('/api/cleanup-notice', authMiddleware, (req, res) => {
+  const daysLeft = getDaysUntilNextCleanup();
+  const nextCleanupDate = getNextCleanupDate();
+  const targetDateStr = nextCleanupDate.toISOString().slice(0, 10);
+  const userRole = req.user.role;
+  const userId = req.user.id;
+  const userDept = req.user.department || '';
+  
+  // 不在通知窗口期，直接返回
+  if (daysLeft > NOTIFY_ADVANCE_DAYS || daysLeft < 0) {
+    return res.json({ needNotify: false });
+  }
+  
+  // 读取状态
+  let status = getCleanupNoticeStatus();
+  
+  // 如果是新一轮清理（targetDate 对不上），重置状态
+  if (status.targetDate !== targetDateStr) {
+    status = {
+      targetDate: targetDateStr,
+      adminApproved: false,
+      adminApprovedAt: null,
+      adminApprovedBy: null,
+      deptAdminsDismissed: {},
+    };
+    saveCleanupNoticeStatus(status);
+  }
+  
+  // 判断通知阶段
+  const isEscalationPhase = daysLeft <= ESCALATE_DAYS_BEFORE;
+  
+  // 根据角色决定是否通知
+  let shouldNotify = false;
+  let notifyLevel = 'info'; // info | warning | urgent
+  
+  if (userRole === 'admin') {
+    // 系统管理员：提前 7 天开始通知
+    shouldNotify = !status.adminApproved;
+    notifyLevel = isEscalationPhase ? 'urgent' : 'warning';
+  } else if (userRole === 'dept_admin') {
+    // 部门管理员：仅在升级阶段（前3天）且系统管理员还没同意时通知
+    const deptDismissed = status.deptAdminsDismissed[userDept] && 
+                         status.deptAdminsDismissed[userDept][String(userId)];
+    shouldNotify = isEscalationPhase && !status.adminApproved && !deptDismissed;
+    notifyLevel = 'urgent';
+  }
+  
+  if (!shouldNotify) {
+    return res.json({ needNotify: false });
+  }
+  
+  // 做一次 dry-run 预览（部门管理员只看本部门的）
+  const previewDept = userRole === 'dept_admin' ? userDept : null;
+  const preview = cleanupOrphanImages(true, previewDept);
+  
+  res.json({
+    needNotify: true,
+    role: userRole,
+    department: userDept,
+    daysLeft,
+    nextCleanupDate: targetDateStr,
+    orphanCount: preview.deletedCount,
+    freedBytes: preview.freedBytes,
+    totalScanned: preview.totalScanned,
+    expiredDeletedCount: preview.expiredDeletedCount,
+    trueOrphanCount: preview.trueOrphanCount,
+    notifyLevel,
+    isEscalationPhase,
+    adminApproved: status.adminApproved,
+  });
+});
+
+// 系统管理员同意清理
+app.post('/api/cleanup-notice/approve', authMiddleware, (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: '仅系统管理员可操作' });
+  }
+  const nextCleanupDate = getNextCleanupDate();
+  const targetDateStr = nextCleanupDate.toISOString().slice(0, 10);
+  let status = getCleanupNoticeStatus();
+  
+  if (status.targetDate !== targetDateStr) {
+    status = {
+      targetDate: targetDateStr,
+      adminApproved: false,
+      adminApprovedAt: null,
+      adminApprovedBy: null,
+      deptAdminsDismissed: {},
+    };
+  }
+  
+  status.adminApproved = true;
+  status.adminApprovedAt = new Date().toISOString();
+  status.adminApprovedBy = req.user.name || req.user.employee_id;
+  
+  if (saveCleanupNoticeStatus(status)) {
+    res.json({ success: true });
+  } else {
+    res.status(500).json({ error: '操作失败' });
+  }
+});
+
+// 部门管理员确认已知悉
+app.post('/api/cleanup-notice/dept-acknowledge', authMiddleware, (req, res) => {
+  if (req.user.role !== 'dept_admin') {
+    return res.status(403).json({ error: '仅部门管理员可操作' });
+  }
+  const nextCleanupDate = getNextCleanupDate();
+  const targetDateStr = nextCleanupDate.toISOString().slice(0, 10);
+  const userDept = req.user.department || '';
+  const userId = String(req.user.id);
+  
+  let status = getCleanupNoticeStatus();
+  if (status.targetDate !== targetDateStr) {
+    status = {
+      targetDate: targetDateStr,
+      adminApproved: false,
+      adminApprovedAt: null,
+      adminApprovedBy: null,
+      deptAdminsDismissed: {},
+    };
+  }
+  
+  if (!status.deptAdminsDismissed[userDept]) {
+    status.deptAdminsDismissed[userDept] = {};
+  }
+  status.deptAdminsDismissed[userDept][userId] = {
+    at: new Date().toISOString(),
+    name: req.user.name || req.user.employee_id,
+  };
+  
+  if (saveCleanupNoticeStatus(status)) {
+    res.json({ success: true });
+  } else {
+    res.status(500).json({ error: '操作失败' });
+  }
+});
+
+// 手动触发清理 API（系统管理员 - 全部部门）
+app.get('/api/admin/cleanup-images/dry-run', authMiddleware, requireRole('admin'), (req, res) => {
+  const result = cleanupOrphanImages(true);
+  res.json({
+    totalScanned: result.totalScanned,
+    totalReferenced: result.totalReferenced,
+    orphanCount: result.deletedCount,
+    freedBytes: result.freedBytes,
+    expiredDeletedCount: result.expiredDeletedCount,
+    trueOrphanCount: result.trueOrphanCount,
+    orphanFiles: result.deletedFiles.slice(0, 100),
+    hasMore: result.deletedFiles.length > 100,
+    scope: 'all',
+  });
+});
+
+app.post('/api/admin/cleanup-images/execute', authMiddleware, requireRole('admin'), (req, res) => {
+  const result = cleanupOrphanImages(false);
+  res.json({
+    success: true,
+    totalScanned: result.totalScanned,
+    totalReferenced: result.totalReferenced,
+    deletedCount: result.deletedCount,
+    freedBytes: result.freedBytes,
+    expiredDeletedCount: result.expiredDeletedCount,
+    trueOrphanCount: result.trueOrphanCount,
+    scope: 'all',
+  });
+});
+
+// 部门管理员手动清理（仅限本部门）
+app.get('/api/dept/cleanup-images/dry-run', authMiddleware, requireRole('dept_admin'), (req, res) => {
+  const result = cleanupOrphanImages(true, req.user.department);
+  res.json({
+    totalScanned: result.totalScanned,
+    totalReferenced: result.totalReferenced,
+    orphanCount: result.deletedCount,
+    freedBytes: result.freedBytes,
+    expiredDeletedCount: result.expiredDeletedCount,
+    trueOrphanCount: result.trueOrphanCount,
+    orphanFiles: result.deletedFiles.slice(0, 100),
+    hasMore: result.deletedFiles.length > 100,
+    scope: req.user.department,
+  });
+});
+
+app.post('/api/dept/cleanup-images/execute', authMiddleware, requireRole('dept_admin'), (req, res) => {
+  const result = cleanupOrphanImages(false, req.user.department);
+  res.json({
+    success: true,
+    totalScanned: result.totalScanned,
+    totalReferenced: result.totalReferenced,
+    deletedCount: result.deletedCount,
+    freedBytes: result.freedBytes,
+    expiredDeletedCount: result.expiredDeletedCount,
+    trueOrphanCount: result.trueOrphanCount,
+    scope: req.user.department,
+  });
+});
+
+// 获取清理日志列表
+app.get('/api/cleanup-logs', authMiddleware, (req, res) => {
+  try {
+    const isAdmin = req.user.role === 'admin';
+    const userDept = req.user.department || '';
+    const files = fs.readdirSync(CLEANUP_LOG_DIR)
+      .filter(f => f.endsWith('.log'))
+      .filter(f => {
+        // 系统管理员看全部；部门管理员只看自己部门的
+        if (isAdmin) return true;
+        return f.includes(`-${userDept}.log`);
+      })
+      .sort()
+      .reverse()
+      .slice(0, 20);
+    res.json(files);
+  } catch (e) {
+    res.status(500).json({ error: '读取日志失败' });
+  }
+});
+
 // ─── 静态资源 & 前端路由 ──────────────────────────────
 // 上传的图片静态访问
 app.use('/uploads', express.static(path.join(UPLOAD_DIR)));
