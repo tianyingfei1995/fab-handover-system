@@ -1976,8 +1976,7 @@ function updateOwnerList() {
 function renderOwnerDropdown(filter) {
   const dropdown = document.getElementById('ownerDropdown');
   if (!dropdown) return;
-  // 过滤掉待删除的 owner（仅在保存后才真正删除）
-  const owners = getOwnerList().filter(o => !pendingDeleteOwners.includes(o));
+  const owners = getOwnerList();
   const filtered = filter
     ? owners.filter(o => o.toLowerCase().includes(filter.toLowerCase()))
     : owners;
@@ -1990,7 +1989,6 @@ function renderOwnerDropdown(filter) {
   dropdown.innerHTML = filtered.map(o => `
     <div class="owner-dropdown-item">
       <span class="owner-name" onclick="selectOwner('${o.replace(/'/g, "\\'")}')">${escapeHtml(o)}</span>
-      <button type="button" class="owner-delete" onclick="event.stopPropagation(); deleteOwner('${o.replace(/'/g, "\\'")}')" title="删除此 Owner">&times;</button>
     </div>
   `).join('');
 }
@@ -2000,41 +1998,6 @@ function selectOwner(name) {
   const input = document.getElementById('mOwner');
   input.value = name;
   document.getElementById('ownerDropdown').classList.remove('active');
-}
-
-// 删除 Owner
-// 待删除的 owner / 机台名称列表（保存机台时统一执行）
-let pendingDeleteOwners = [];
-let pendingDeleteMachineNames = [];
-
-// 删除 Owner（延迟到保存时执行，不修改缓存）
-function deleteOwner(name) {
-  if (!pendingDeleteOwners.includes(name)) pendingDeleteOwners.push(name);
-  // 从下拉列表 DOM 中移除显示（不修改缓存，取消时可恢复）
-  const dropdown = document.getElementById('ownerDropdown');
-  if (dropdown) {
-    const items = dropdown.querySelectorAll('.owner-dropdown-item');
-    items.forEach(item => {
-      const nameSpan = item.querySelector('.owner-name');
-      if (nameSpan && nameSpan.textContent.trim() === name) item.remove();
-    });
-  }
-  showToast(`已移除 Owner「${name}」，保存后生效`);
-}
-
-// 删除机台名称（延迟到保存时执行，不修改缓存）
-function deleteMachineName(name) {
-  if (!pendingDeleteMachineNames.includes(name)) pendingDeleteMachineNames.push(name);
-  // 从下拉列表 DOM 中移除显示（不修改缓存，取消时可恢复）
-  const dropdown = document.getElementById('machineNameDropdown');
-  if (dropdown) {
-    const items = dropdown.querySelectorAll('.owner-dropdown-item');
-    items.forEach(item => {
-      const nameSpan = item.querySelector('.owner-name');
-      if (nameSpan && nameSpan.textContent.trim() === name) item.remove();
-    });
-  }
-  showToast(`已移除机台「${name}」，保存后生效`);
 }
 
 // 防抖工具函数
@@ -2082,8 +2045,7 @@ function updateMachineNameList() {
 function renderMachineNameDropdown(filter) {
   const dropdown = document.getElementById('machineNameDropdown');
   if (!dropdown) return;
-  // 过滤掉待删除的机台名称（仅在保存后才真正删除）
-  const names = getMachineNameList().filter(n => !pendingDeleteMachineNames.includes(n));
+  const names = getMachineNameList();
   const filtered = filter
     ? names.filter(n => n.toLowerCase().includes(filter.toLowerCase()))
     : names;
@@ -2096,7 +2058,6 @@ function renderMachineNameDropdown(filter) {
   dropdown.innerHTML = filtered.map(n => `
     <div class="owner-dropdown-item">
       <span class="owner-name" onclick="selectMachineName('${n.replace(/'/g, "\\'")}')">${escapeHtml(n)}</span>
-      <button type="button" class="owner-delete" onclick="event.stopPropagation(); deleteMachineName('${n.replace(/'/g, "\\'")}')" title="删除此机台名称">&times;</button>
     </div>
   `).join('');
 }
@@ -2350,9 +2311,6 @@ function renderMachineTable() {
 }
 
 function openMachineModal() {
-  // 清空待删除列表
-  pendingDeleteOwners = [];
-  pendingDeleteMachineNames = [];
   imageContext = 'machine';
   document.getElementById('machineModalTitle').textContent = '新增机台';
   document.getElementById('machineEditId').value = '';
@@ -2399,9 +2357,6 @@ document.addEventListener('focusout', (e) => {
 function editMachine(id) {
   const m = machines.find(x => x.id === id);
   if (!m) return;
-  // 清空待删除列表（每次打开编辑都重新开始）
-  pendingDeleteOwners = [];
-  pendingDeleteMachineNames = [];
   imageContext = 'machine';
   document.getElementById('machineModalTitle').textContent = '编辑机台';
   document.getElementById('machineEditId').value = m.id;
@@ -2465,22 +2420,9 @@ async function saveMachine() {
       renderMachineTable();
     }
     showToast(isEdit ? '机台更新成功' : '机台创建成功');
-    // 执行待删除的 owner / 机台名称
-    for (const owner of pendingDeleteOwners) {
-      try { await apiCall('DELETE', `/machines/owner/${encodeURIComponent(owner)}`); } catch (e) {}
-    }
-    for (const name of pendingDeleteMachineNames) {
-      try { await apiCall('DELETE', `/machines/name/${encodeURIComponent(name)}`); } catch (e) {}
-    }
-    // 清空待删除列表
-    pendingDeleteOwners = [];
-    pendingDeleteMachineNames = [];
     // 后台静默刷新，确保数据一致
     loadMachines();
   } catch (e) {
-    // 失败时也清空待删除列表，避免重复操作
-    pendingDeleteOwners = [];
-    pendingDeleteMachineNames = [];
     showToast('操作失败，正在恢复数据', 'error');
     await loadMachines();
   }
@@ -2862,8 +2804,6 @@ async function loadLtMachines() {
 // ===== 长期机台 Owner 下拉 =====
 let _ltOwnerListCache = [];
 let _ltMachineNameListCache = [];
-let pendingDeleteLtOwners = [];
-let pendingDeleteLtMachineNames = [];
 
 function getLtOwnerList() { return _ltOwnerListCache || []; }
 function getLtMachineNameList() { return _ltMachineNameListCache || []; }
@@ -2881,13 +2821,12 @@ function updateLtMachineNameList() {
 function renderLtOwnerDropdown(filter) {
   const dropdown = document.getElementById('ltOwnerDropdown');
   if (!dropdown) return;
-  const owners = getLtOwnerList().filter(o => !pendingDeleteLtOwners.includes(o));
+  const owners = getLtOwnerList();
   const filtered = filter ? owners.filter(o => o.toLowerCase().includes(filter.toLowerCase())) : owners;
   if (filtered.length === 0) { dropdown.innerHTML = '<div class="owner-dropdown-empty">暂无 Owner 记录</div>'; return; }
   dropdown.innerHTML = filtered.map(o => `
     <div class="owner-dropdown-item">
       <span class="owner-name" onclick="selectLtOwner('${o.replace(/'/g, "\\'")}')">${escapeHtml(o)}</span>
-      <button type="button" class="owner-delete" onclick="event.stopPropagation(); deleteLtOwner('${o.replace(/'/g, "\\'")}')" title="删除此 Owner">&times;</button>
     </div>
   `).join('');
 }
@@ -2897,28 +2836,15 @@ function selectLtOwner(name) {
   document.getElementById('ltOwnerDropdown').classList.remove('active');
 }
 
-function deleteLtOwner(name) {
-  if (!pendingDeleteLtOwners.includes(name)) pendingDeleteLtOwners.push(name);
-  const dropdown = document.getElementById('ltOwnerDropdown');
-  if (dropdown) {
-    dropdown.querySelectorAll('.owner-dropdown-item').forEach(item => {
-      const nameSpan = item.querySelector('.owner-name');
-      if (nameSpan && nameSpan.textContent.trim() === name) item.remove();
-    });
-  }
-  showToast(`已移除 Owner「${name}」，保存后生效`);
-}
-
 function renderLtMachineNameDropdown(filter) {
   const dropdown = document.getElementById('ltMachineNameDropdown');
   if (!dropdown) return;
-  const names = getLtMachineNameList().filter(n => !pendingDeleteLtMachineNames.includes(n));
+  const names = getLtMachineNameList();
   const filtered = filter ? names.filter(n => n.toLowerCase().includes(filter.toLowerCase())) : names;
   if (filtered.length === 0) { dropdown.innerHTML = '<div class="owner-dropdown-empty">暂无机台名称记录</div>'; return; }
   dropdown.innerHTML = filtered.map(n => `
     <div class="owner-dropdown-item">
       <span class="owner-name" onclick="selectLtMachineName('${n.replace(/'/g, "\\'")}')">${escapeHtml(n)}</span>
-      <button type="button" class="owner-delete" onclick="event.stopPropagation(); deleteLtMachineName('${n.replace(/'/g, "\\'")}')" title="删除此机台名称">&times;</button>
     </div>
   `).join('');
 }
@@ -2926,18 +2852,6 @@ function renderLtMachineNameDropdown(filter) {
 function selectLtMachineName(name) {
   document.getElementById('ltMMachineName').value = name;
   document.getElementById('ltMachineNameDropdown').classList.remove('active');
-}
-
-function deleteLtMachineName(name) {
-  if (!pendingDeleteLtMachineNames.includes(name)) pendingDeleteLtMachineNames.push(name);
-  const dropdown = document.getElementById('ltMachineNameDropdown');
-  if (dropdown) {
-    dropdown.querySelectorAll('.owner-dropdown-item').forEach(item => {
-      const nameSpan = item.querySelector('.owner-name');
-      if (nameSpan && nameSpan.textContent.trim() === name) item.remove();
-    });
-  }
-  showToast(`已移除机台「${name}」，保存后生效`);
 }
 
 // ===== 长期机台排序 =====
@@ -3133,8 +3047,6 @@ function renderLtMachineTable() {
 
 // ===== 长期机台弹窗 =====
 function openLtMachineModal() {
-  pendingDeleteLtOwners = [];
-  pendingDeleteLtMachineNames = [];
   document.getElementById('ltMachineModalTitle').textContent = '新增机台';
   document.getElementById('ltMachineEditId').value = '';
   document.getElementById('ltMMachineName').value = '';
@@ -3171,8 +3083,6 @@ function setLtAlarmFontSize(size) {
 function editLtMachine(id) {
   const m = ltMachines.find(x => x.id === id);
   if (!m) return;
-  pendingDeleteLtOwners = [];
-  pendingDeleteLtMachineNames = [];
   document.getElementById('ltMachineModalTitle').textContent = '编辑机台';
   document.getElementById('ltMachineEditId').value = m.id;
   document.getElementById('ltMMachineName').value = m.machine_name;
@@ -3230,19 +3140,8 @@ async function saveLtMachine() {
       renderLtMachineTable();
     }
     showToast(isEdit ? '机台更新成功' : '机台创建成功');
-    // 执行待删除的 owner / 机台名称
-    for (const owner of pendingDeleteLtOwners) {
-      try { await apiCall('DELETE', `/long-term-machines/owner/${encodeURIComponent(owner)}`); } catch (e) {}
-    }
-    for (const name of pendingDeleteLtMachineNames) {
-      try { await apiCall('DELETE', `/long-term-machines/name/${encodeURIComponent(name)}`); } catch (e) {}
-    }
-    pendingDeleteLtOwners = [];
-    pendingDeleteLtMachineNames = [];
     loadLtMachines();
   } catch (e) {
-    pendingDeleteLtOwners = [];
-    pendingDeleteLtMachineNames = [];
     showToast('操作失败，正在恢复数据', 'error');
     await loadLtMachines();
   }
