@@ -1574,111 +1574,53 @@ function cleanupEmptyDirs(dir) {
   } catch (_) {}
 }
 
-// ─── 定时清理：服务启动后每满半年执行一次 ───
-// 注：setTimeout 最大只支持约 24.8 天，所以采用每日轮询方式
-// 用一个标记文件记录服务首次启动时间，作为周期计算的基准
-const START_MARKER_FILE = path.join(CLEANUP_LOG_DIR, '.first-start-time');
+// ─── 磁盘空间监控驱动的孤儿图片清理 ───
+// 当磁盘剩余空间低于阈值时，提醒管理员清理无用图片
+// 清理范围不变：过期软删记录图片 + 无主孤儿图片
 
-function getServiceStartDate() {
-  // 读取或创建服务启动基准时间
+// 磁盘空间阈值（字节）
+const DISK_WARNING_BYTES = 5 * 1024 * 1024 * 1024;  // 5GB — 开始提醒系统管理员
+const DISK_URGENT_BYTES  = 2 * 1024 * 1024 * 1024;  // 2GB — 升级通知部门管理员
+
+// 获取指定路径所在磁盘的剩余空间（字节）
+function getDiskFreeSpace(targetPath = UPLOAD_DIR) {
   try {
-    if (fs.existsSync(START_MARKER_FILE)) {
-      const ts = parseInt(fs.readFileSync(START_MARKER_FILE, 'utf8').trim(), 10);
-      if (!isNaN(ts)) return new Date(ts);
-    }
-  } catch (_) {}
-  // 首次启动，写入当前时间作为基准
-  const now = new Date();
-  try {
-    fs.writeFileSync(START_MARKER_FILE, String(now.getTime()), 'utf8');
-  } catch (_) {}
-  return now;
-}
-
-function getLastCleanupTime() {
-  // 从日志文件中找到最近一次清理时间
-  try {
-    const logFiles = fs.readdirSync(CLEANUP_LOG_DIR)
-      .filter(f => f.startsWith('cleanup-') && f.endsWith('.log'))
-      .sort()
-      .reverse();
-    if (logFiles.length === 0) return null;
-    // 从文件名提取日期（cleanup-YYYY-MM-DD.log）
-    const match = logFiles[0].match(/cleanup-(\d{4}-\d{2}-\d{2})\.log/);
-    if (match) return new Date(match[1] + 'T00:00:00');
-  } catch (_) {}
-  return null;
-}
-
-function checkAndRunYearlyCleanup() {
-  const now = new Date();
-  const startDate = getServiceStartDate();
-  const lastCleanup = getLastCleanupTime();
-
-  // 计算距离上次清理（或启动）是否已满半年
-  const referenceDate = lastCleanup || startDate;
-  const intervalMs = CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
-  const elapsed = now.getTime() - referenceDate.getTime();
-
-  if (elapsed >= intervalMs) {
-    console.log('[清理] 距上次清理已满半年，开始执行孤儿图片清理...');
-    cleanupOrphanImages(false);
+    const { execSync } = require('child_process');
+    // -k 表示 KB，-P 保证输出格式一致
+    const output = execSync(`df -kP "${targetPath}"`, { encoding: 'utf8' });
+    const lines = output.trim().split('\n');
+    if (lines.length < 2) return null;
+    const parts = lines[1].split(/\s+/);
+    // df -k 输出：Filesystem 1024-blocks Used Available Capacity Mounted on
+    const availKb = parseInt(parts[3], 10);
+    if (isNaN(availKb)) return null;
+    return availKb * 1024; // 转成字节
+  } catch (e) {
+    console.error('[清理] 获取磁盘空间失败:', e.message);
+    return null;
   }
 }
 
-function scheduleYearlyCleanup() {
-  const startDate = getServiceStartDate();
-  const lastCleanup = getLastCleanupTime();
-  
-  // 启动时先检查一次（防止服务停了很久刚启动时错过）
-  checkAndRunYearlyCleanup();
-  
-  // 每 24 小时检查一次
-  const ONE_DAY = 86400000;
-  setInterval(checkAndRunYearlyCleanup, ONE_DAY);
-  
-  // 计算下次执行时间（用于日志提示）
-  const now = new Date();
-  const referenceDate = lastCleanup || startDate;
-  // 从参考日期起算，下一个满半年的日子
-  let nextRun = new Date(referenceDate.getTime() + CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
-  // 如果 nextRun 已经过了（说明刚执行过或服务停了很久），就按现在 + 半年算
-  if (nextRun.getTime() <= now.getTime()) {
-    nextRun = new Date(now.getTime() + CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
-  }
-  
-  console.log(`[清理] 半年度清理已调度（启动基准: ${startDate.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })}）`);
-  console.log(`[清理] 下次自动清理约: ${nextRun.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+// 格式化字节数为可读形式
+function formatDiskSpace(bytes) {
+  if (bytes === null) return '未知';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
 }
 
-// 服务启动时调度清理
-scheduleYearlyCleanup();
-
-// 清理预告通知（分阶段）
-const NOTIFY_ADVANCE_DAYS = 7;      // 提前 7 天开始通知系统管理员
-const ESCALATE_DAYS_BEFORE = 3;     // 到期前 3 天未处理则升级通知部门管理员
+// 清理通知状态文件
 const CLEANUP_STATUS_FILE = path.join(CLEANUP_LOG_DIR, '.cleanup-notice-status.json');
-
-// 计算距离下次清理还有多少天
-function getDaysUntilNextCleanup() {
-  const now = new Date();
-  const startDate = getServiceStartDate();
-  const lastCleanup = getLastCleanupTime();
-  const referenceDate = lastCleanup || startDate;
-  const intervalMs = CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
-  const nextRunMs = referenceDate.getTime() + intervalMs;
-  const diffMs = nextRunMs - now.getTime();
-  return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-}
 
 // 读取通知状态
 function getCleanupNoticeStatus() {
   const defaultStatus = {
-    targetDate: null,       // 本次对应的清理日期
-    adminApproved: false,   // 系统管理员是否同意
+    lastCheckDiskFree: null,  // 上次检查时的剩余空间
+    adminApproved: false,     // 系统管理员是否已同意清理
     adminApprovedAt: null,
     adminApprovedBy: null,
-    deptAdminsDismissed: {}, // 部门管理员已读记录 { dept: { userId: true } }
+    deptAdminsDismissed: {},  // 部门管理员已读记录 { dept: { userId: { at, name } } }
   };
   try {
     if (fs.existsSync(CLEANUP_STATUS_FILE)) {
@@ -1699,65 +1641,71 @@ function saveCleanupNoticeStatus(status) {
   }
 }
 
-// 计算下次清理日期
-function getNextCleanupDate() {
-  const startDate = getServiceStartDate();
-  const lastCleanup = getLastCleanupTime();
-  const referenceDate = lastCleanup || startDate;
-  const intervalMs = CLEANUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
-  return new Date(referenceDate.getTime() + intervalMs);
+// 定期检查磁盘空间（每小时一次）
+function scheduleDiskMonitor() {
+  const check = () => {
+    const freeBytes = getDiskFreeSpace();
+    if (freeBytes === null) return;
+    
+    const freeGB = (freeBytes / (1024 * 1024 * 1024)).toFixed(2);
+    
+    if (freeBytes < DISK_URGENT_BYTES) {
+      console.log(`[清理] ⚠️ 磁盘剩余 ${freeGB}GB，已低于紧急阈值 2GB，请尽快清理`);
+    } else if (freeBytes < DISK_WARNING_BYTES) {
+      console.log(`[清理] 磁盘剩余 ${freeGB}GB，低于预警阈值 5GB，已提醒管理员清理`);
+    }
+  };
+  
+  // 启动时先检查一次
+  check();
+  
+  // 每小时检查一次
+  const ONE_HOUR = 60 * 60 * 1000;
+  setInterval(check, ONE_HOUR);
+  
+  const freeBytes = getDiskFreeSpace();
+  console.log(`[清理] 磁盘空间监控已启动（当前剩余: ${formatDiskSpace(freeBytes)}，预警: 5GB，紧急: 2GB）`);
 }
 
-// 清理预告 API（所有管理员登录后检查，根据角色返回不同内容）
+// 启动磁盘监控
+scheduleDiskMonitor();
+
+// 清理预告 API（所有管理员登录后检查，根据磁盘剩余空间决定是否通知）
 app.get('/api/cleanup-notice', authMiddleware, (req, res) => {
-  const daysLeft = getDaysUntilNextCleanup();
-  const nextCleanupDate = getNextCleanupDate();
-  const targetDateStr = nextCleanupDate.toISOString().slice(0, 10);
+  const freeBytes = getDiskFreeSpace();
   const userRole = req.user.role;
   const userId = req.user.id;
   const userDept = req.user.department || '';
   
-  // 不在通知窗口期，直接返回
-  if (daysLeft > NOTIFY_ADVANCE_DAYS || daysLeft < 0) {
-    return res.json({ needNotify: false });
+  // 空间充足，不需要通知
+  if (freeBytes === null || freeBytes >= DISK_WARNING_BYTES) {
+    return res.json({ needNotify: false, diskFreeBytes: freeBytes });
   }
   
   // 读取状态
   let status = getCleanupNoticeStatus();
   
-  // 如果是新一轮清理（targetDate 对不上），重置状态
-  if (status.targetDate !== targetDateStr) {
-    status = {
-      targetDate: targetDateStr,
-      adminApproved: false,
-      adminApprovedAt: null,
-      adminApprovedBy: null,
-      deptAdminsDismissed: {},
-    };
-    saveCleanupNoticeStatus(status);
-  }
-  
-  // 判断通知阶段
-  const isEscalationPhase = daysLeft <= ESCALATE_DAYS_BEFORE;
+  // 判断紧急程度
+  const isUrgent = freeBytes < DISK_URGENT_BYTES;
   
   // 根据角色决定是否通知
   let shouldNotify = false;
-  let notifyLevel = 'info'; // info | warning | urgent
+  let notifyLevel = 'warning'; // warning | urgent
   
   if (userRole === 'admin') {
-    // 系统管理员：提前 7 天开始通知
+    // 系统管理员：低于 5GB 就通知
     shouldNotify = !status.adminApproved;
-    notifyLevel = isEscalationPhase ? 'urgent' : 'warning';
+    notifyLevel = isUrgent ? 'urgent' : 'warning';
   } else if (userRole === 'dept_admin') {
-    // 部门管理员：仅在升级阶段（前3天）且系统管理员还没同意时通知
+    // 部门管理员：仅在紧急阶段（<2GB）且系统管理员还没处理时通知
     const deptDismissed = status.deptAdminsDismissed[userDept] && 
                          status.deptAdminsDismissed[userDept][String(userId)];
-    shouldNotify = isEscalationPhase && !status.adminApproved && !deptDismissed;
+    shouldNotify = isUrgent && !status.adminApproved && !deptDismissed;
     notifyLevel = 'urgent';
   }
   
   if (!shouldNotify) {
-    return res.json({ needNotify: false });
+    return res.json({ needNotify: false, diskFreeBytes: freeBytes });
   }
   
   // 做一次 dry-run 预览（部门管理员只看本部门的）
@@ -1768,15 +1716,17 @@ app.get('/api/cleanup-notice', authMiddleware, (req, res) => {
     needNotify: true,
     role: userRole,
     department: userDept,
-    daysLeft,
-    nextCleanupDate: targetDateStr,
+    diskFreeBytes: freeBytes,
+    diskFreeFormatted: formatDiskSpace(freeBytes),
+    warningThreshold: DISK_WARNING_BYTES,
+    urgentThreshold: DISK_URGENT_BYTES,
     orphanCount: preview.deletedCount,
     freedBytes: preview.freedBytes,
     totalScanned: preview.totalScanned,
     expiredDeletedCount: preview.expiredDeletedCount,
     trueOrphanCount: preview.trueOrphanCount,
     notifyLevel,
-    isEscalationPhase,
+    isUrgent,
     adminApproved: status.adminApproved,
   });
 });
@@ -1786,23 +1736,12 @@ app.post('/api/cleanup-notice/approve', authMiddleware, (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: '仅系统管理员可操作' });
   }
-  const nextCleanupDate = getNextCleanupDate();
-  const targetDateStr = nextCleanupDate.toISOString().slice(0, 10);
   let status = getCleanupNoticeStatus();
-  
-  if (status.targetDate !== targetDateStr) {
-    status = {
-      targetDate: targetDateStr,
-      adminApproved: false,
-      adminApprovedAt: null,
-      adminApprovedBy: null,
-      deptAdminsDismissed: {},
-    };
-  }
   
   status.adminApproved = true;
   status.adminApprovedAt = new Date().toISOString();
   status.adminApprovedBy = req.user.name || req.user.employee_id;
+  status.lastCheckDiskFree = getDiskFreeSpace();
   
   if (saveCleanupNoticeStatus(status)) {
     res.json({ success: true });
@@ -1816,21 +1755,10 @@ app.post('/api/cleanup-notice/dept-acknowledge', authMiddleware, (req, res) => {
   if (req.user.role !== 'dept_admin') {
     return res.status(403).json({ error: '仅部门管理员可操作' });
   }
-  const nextCleanupDate = getNextCleanupDate();
-  const targetDateStr = nextCleanupDate.toISOString().slice(0, 10);
   const userDept = req.user.department || '';
   const userId = String(req.user.id);
   
   let status = getCleanupNoticeStatus();
-  if (status.targetDate !== targetDateStr) {
-    status = {
-      targetDate: targetDateStr,
-      adminApproved: false,
-      adminApprovedAt: null,
-      adminApprovedBy: null,
-      deptAdminsDismissed: {},
-    };
-  }
   
   if (!status.deptAdminsDismissed[userDept]) {
     status.deptAdminsDismissed[userDept] = {};

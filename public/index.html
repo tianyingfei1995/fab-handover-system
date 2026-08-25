@@ -1906,10 +1906,10 @@ F："></div>
         <div id="cleanupNoticeAdminContent" style="display:none;">
           <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
             <div style="font-weight:600;color:#92400e;margin-bottom:6px;font-size:14px;">
-              ⚠️ 系统将于 <strong id="cleanupNoticeDateAdmin" style="color:#dc2626;"></strong> 执行半年度图片清理
+              ⚠️ 当前磁盘剩余空间：<strong id="cleanupNoticeDiskAdmin" style="color:#dc2626;"></strong>，低于预警阈值 5GB
             </div>
             <div style="font-size:13px;color:#78350f;line-height:1.6;">
-              清理对象为<strong>半年前已被删除记录对应的图片文件</strong>。这些记录在回收站中已满半年，其关联图片将被永久删除，<strong>删除后无法恢复</strong>。
+              为避免磁盘满影响系统正常运行，建议及时清理<strong>已删除记录对应的无用图片文件</strong>。这些图片关联的记录已从回收站删除满半年，清理后<strong>无法恢复</strong>。
             </div>
           </div>
           <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
@@ -1917,21 +1917,23 @@ F："></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;color:#15803d;">
               <div>扫描文件总数：<span id="cleanupNoticeScannedAdmin" style="font-weight:600;"></span> 个</div>
               <div>待清理文件数：<span id="cleanupNoticeOrphanAdmin" style="font-weight:600;color:#dc2626;"></span> 个</div>
+              <div>过期软删图片：<span id="cleanupNoticeExpiredAdmin" style="font-weight:600;"></span> 个</div>
+              <div>无主孤儿图片：<span id="cleanupNoticeTrueOrphanAdmin" style="font-weight:600;"></span> 个</div>
               <div style="grid-column:span 2;">预计释放空间：<span id="cleanupNoticeSizeAdmin" style="font-weight:600;"></span></div>
             </div>
           </div>
           <div style="font-size:13px;color:#6b7280;line-height:1.6;">
-            <strong style="color:#374151;">说明：</strong>仍在正常使用的记录图片不会被清理，仅清理回收站中已满半年的已删除记录关联图片。请确认后点击"同意清理"。
+            <strong style="color:#374151;">说明：</strong>仍在正常使用的记录图片不会被清理。请确认后点击"同意清理"执行清理操作。
           </div>
         </div>
         <!-- 部门管理员文案 -->
         <div id="cleanupNoticeDeptContent" style="display:none;">
           <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
             <div style="font-weight:600;color:#991b1b;margin-bottom:6px;font-size:14px;">
-              🚨 紧急通知：系统将于 <strong id="cleanupNoticeDateDept" style="color:#dc2626;"></strong> 执行半年度数据清理
+              🚨 紧急：磁盘剩余空间仅 <strong id="cleanupNoticeDiskDept" style="color:#dc2626;"></strong>，请尽快清理
             </div>
             <div style="font-size:13px;color:#7f1d1d;line-height:1.6;">
-              系统将清理<strong>半年前已被删除记录对应的图片文件</strong>。以下为您所在部门（<strong id="cleanupNoticeDeptName" style="color:#dc2626;"></strong>）的待清理数据，删除后<strong>无法恢复</strong>。
+              系统磁盘空间严重不足，将清理<strong>半年前已被删除记录对应的图片文件</strong>。以下为您所在部门（<strong id="cleanupNoticeDeptName" style="color:#dc2626;"></strong>）的待清理数据，删除后<strong>无法恢复</strong>。
             </div>
           </div>
           <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:12px 14px;margin-bottom:14px;">

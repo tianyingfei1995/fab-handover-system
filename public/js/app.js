@@ -129,7 +129,7 @@ function showToast(msg, type = 'success') {
   setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2800);
 }
 
-// ─── 图片清理通知 ───
+// ─── 图片清理通知（磁盘空间驱动） ───
 async function checkCleanupNotice() {
   // 系统管理员和部门管理员需要检查
   if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'dept_admin')) return;
@@ -145,26 +145,16 @@ async function checkCleanupNotice() {
 
 function showCleanupNoticeModal(data) {
   const isAdmin = data.role === 'admin';
-  const daysLeft = data.daysLeft;
-  
-  let dateText = data.nextCleanupDate;
-  if (daysLeft === 0) {
-    dateText += '（今天执行）';
-  } else if (daysLeft === 1) {
-    dateText += '（明天执行）';
-  } else {
-    dateText += `（还有 ${daysLeft} 天）`;
-  }
   
   // 设置图标颜色和标题
   const icon = document.getElementById('cleanupNoticeIcon');
   const titleEl = document.getElementById('cleanupNoticeTitle');
   if (data.notifyLevel === 'urgent') {
     icon.setAttribute('stroke', '#ef4444');
-    titleEl.textContent = isAdmin ? '⚠️ 半年度图片清理即将执行' : '🚨 紧急：半年度数据清理通知';
+    titleEl.textContent = isAdmin ? '🚨 紧急：磁盘空间不足，请立即清理' : '🚨 紧急：磁盘空间不足，部门数据待清理';
   } else {
     icon.setAttribute('stroke', '#f59e0b');
-    titleEl.textContent = '📢 半年度图片清理预告';
+    titleEl.textContent = '⚠️ 磁盘空间预警：请及时清理无用图片';
   }
   
   // 显示对应角色的内容
@@ -178,17 +168,19 @@ function showCleanupNoticeModal(data) {
     deptContent.style.display = 'none';
     adminFooter.style.display = 'flex';
     deptFooter.style.display = 'none';
-    document.getElementById('cleanupNoticeDateAdmin').textContent = dateText;
+    document.getElementById('cleanupNoticeDiskAdmin').textContent = data.diskFreeFormatted;
     document.getElementById('cleanupNoticeScannedAdmin').textContent = data.totalScanned;
     document.getElementById('cleanupNoticeOrphanAdmin').textContent = data.orphanCount;
     document.getElementById('cleanupNoticeSizeAdmin').textContent = formatBytes(data.freedBytes);
+    document.getElementById('cleanupNoticeTrueOrphanAdmin').textContent = data.trueOrphanCount;
+    document.getElementById('cleanupNoticeExpiredAdmin').textContent = data.expiredDeletedCount;
   } else {
     // 部门管理员
     adminContent.style.display = 'none';
     deptContent.style.display = 'block';
     adminFooter.style.display = 'none';
     deptFooter.style.display = 'flex';
-    document.getElementById('cleanupNoticeDateDept').textContent = dateText;
+    document.getElementById('cleanupNoticeDiskDept').textContent = data.diskFreeFormatted;
     document.getElementById('cleanupNoticeDeptName').textContent = data.department || '本部门';
     document.getElementById('cleanupNoticeOrphanDept').textContent = data.orphanCount;
     document.getElementById('cleanupNoticeSizeDept').textContent = formatBytes(data.freedBytes);
@@ -205,7 +197,12 @@ function closeCleanupNoticeModal() {
 async function approveCleanup() {
   try {
     await _doFetch('POST', '/api/cleanup-notice/approve');
-    showToast('已确认同意，系统将按期执行清理', 'success');
+    showToast('已确认，正在执行清理...', 'success');
+    // 同意后立即执行清理
+    const result = await _doFetch('POST', '/api/admin/cleanup-images/execute');
+    if (result && result.success) {
+      showToast(`清理完成，共删除 ${result.deletedCount} 个文件，释放 ${formatBytes(result.freedBytes)}`, 'success');
+    }
   } catch (e) {
     showToast('操作失败：' + (e.message || '未知错误'), 'error');
     return;
@@ -220,11 +217,16 @@ function dismissCleanupNoticeAdmin() {
   closeCleanupNoticeModal();
 }
 
-// 部门管理员 - 已知悉同意
+// 部门管理员 - 已知悉同意（立即执行本部门清理）
 async function acknowledgeCleanupDept() {
   try {
     await _doFetch('POST', '/api/cleanup-notice/dept-acknowledge');
-    showToast('已确认知悉，感谢您的配合', 'success');
+    showToast('已确认，正在清理本部门数据...', 'success');
+    // 立即执行本部门清理
+    const result = await _doFetch('POST', '/api/dept/cleanup-images/execute');
+    if (result && result.success) {
+      showToast(`清理完成，共删除 ${result.deletedCount} 个文件，释放 ${formatBytes(result.freedBytes)}`, 'success');
+    }
   } catch (e) {
     showToast('操作失败：' + (e.message || '未知错误'), 'error');
     return;
