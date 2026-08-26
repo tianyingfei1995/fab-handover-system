@@ -2301,8 +2301,12 @@ function renderMachineTable() {
   if (!tbody) return;
   const searchEl = document.getElementById('machineSearch');
   const statusEl = document.getElementById('machineStatusFilter');
+  const processEl = document.getElementById('machineProcessStatusFilter');
+  const shiftEl = document.getElementById('machineShiftFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const statusFilter = statusEl ? statusEl.value : '';
+  const processStatusFilter = processEl ? processEl.value : '';
+  const shiftFilter = shiftEl ? shiftEl.value : '';
 
   let filtered = machines.filter(m => {
     const matchSearch = !search ||
@@ -2311,7 +2315,9 @@ function renderMachineTable() {
       stripHtml(m.alarm_info || '').toLowerCase().includes(search) ||
       (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
+    const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
+    return matchSearch && matchStatus && matchProcessStatus && matchShift;
   });
 
   // 应用排序
@@ -3089,8 +3095,12 @@ function renderLtMachineTable() {
   if (!tbody) return;
   const searchEl = document.getElementById('ltMachineSearch');
   const statusEl = document.getElementById('ltMachineStatusFilter');
+  const processEl = document.getElementById('ltMachineProcessStatusFilter');
+  const shiftEl = document.getElementById('ltMachineShiftFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const statusFilter = statusEl ? statusEl.value : '';
+  const processStatusFilter = processEl ? processEl.value : '';
+  const shiftFilter = shiftEl ? shiftEl.value : '';
 
   let filtered = ltMachines.filter(m => {
     const matchSearch = !search ||
@@ -3099,7 +3109,9 @@ function renderLtMachineTable() {
       stripHtml(m.alarm_info || '').toLowerCase().includes(search) ||
       (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
+    const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
+    return matchSearch && matchStatus && matchProcessStatus && matchShift;
   });
 
   filtered = applyLtMachineSort(filtered);
@@ -3890,7 +3902,8 @@ function toggleSignInSelectAll(checked) {
         (s.shift_time || '').toLowerCase().includes(search) ||
         (s.location || '').toLowerCase().includes(search) ||
         (s.host || '').toLowerCase().includes(search) ||
-        attendeesText.toLowerCase().includes(search);
+        attendeesText.toLowerCase().includes(search) ||
+        (s.updated_at || '').toLowerCase().includes(search);
       const matchShift = !shiftFilter || (s.shift_time || '').includes(shiftFilter);
       const matchHost = !hostFilter || (s.host || '') === hostFilter;
       const matchDate = !dateFilter || (s.shift_time || '').startsWith(dateFilter);
