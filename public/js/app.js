@@ -2479,13 +2479,23 @@ function toggleMachineSelect(id, checked) {
   updateBatchCount();
 }
 
+// ===== 批量操作栏统一显隐逻辑 =====
+// 常驻显示：未勾选时批量按钮置灰、「取消选择」隐藏（避免与「重置」功能重复的观感）
+function updateBatchBarDisplay(barId, count) {
+  const bar = document.getElementById(barId);
+  if (!bar) return;
+  const clearBtn = bar.querySelector('.batch-bar-right .btn-ghost');
+  if (clearBtn) clearBtn.style.display = count > 0 ? '' : 'none';
+  bar.querySelectorAll('.batch-bar-right .btn:not(.btn-ghost), .batch-bar-right select').forEach(el => {
+    el.disabled = count === 0;
+  });
+}
+
 function updateBatchCount() {
   const count = selectedMachineIds.size;
   const el = document.getElementById('batchCount');
   if (el) el.textContent = `已选 ${count} 项`;
-  // 未勾选任何行时隐藏批量操作栏，避免「取消选择」与「重置」看起来功能重复
-  const bar = document.getElementById('machineBatchBar');
-  if (bar) bar.style.display = count > 0 ? '' : 'none';
+  updateBatchBarDisplay('machineBatchBar', count);
   const visibleIds = new Set(filteredMachineIds());
   const allVisible = [...visibleIds].every(id => selectedMachineIds.has(id));
   const head1 = document.getElementById('selectAllMachines');
@@ -2935,9 +2945,7 @@ function toggleArSelectAll(checked) {
 function updateArBatchCount() {
   const count = selectedArIds.size;
   document.getElementById('arBatchCount').textContent = `已选 ${count} 项`;
-  // 未勾选任何行时隐藏批量操作栏
-  const bar = document.getElementById('arHandoverBatchBar');
-  if (bar) bar.style.display = count > 0 ? '' : 'none';
+  updateBatchBarDisplay('arHandoverBatchBar', count);
   const visibleIds = new Set(filteredArIds());
   const allVisible = [...visibleIds].every(id => selectedArIds.has(id));
   document.getElementById('arSelectAll').checked = allVisible;
@@ -3294,9 +3302,7 @@ function updateLtBatchCount() {
   const count = selectedLtMachineIds.size;
   const el = document.getElementById('ltBatchCount');
   if (el) el.textContent = `已选 ${count} 项`;
-  // 未勾选任何行时隐藏批量操作栏
-  const bar = document.getElementById('ltMachineBatchBar');
-  if (bar) bar.style.display = count > 0 ? '' : 'none';
+  updateBatchBarDisplay('ltMachineBatchBar', count);
   const visibleIds = new Set(filteredLtMachineIds());
   const allVisible = [...visibleIds].every(id => selectedLtMachineIds.has(id));
   const head1 = document.getElementById('ltSelectAllMachines');
@@ -3807,9 +3813,7 @@ function toggleLotHSelect(id, checked) {
 function updateLotHBatchCount() {
   const countEl = document.getElementById('lotHBatchCount');
   if (countEl) countEl.textContent = `已选 ${selectedLotHIds.size} 项`;
-  // 未勾选任何行时隐藏批量操作栏
-  const bar = document.getElementById('lotHandoverBatchBar');
-  if (bar) bar.style.display = selectedLotHIds.size > 0 ? '' : 'none';
+  updateBatchBarDisplay('lotHandoverBatchBar', selectedLotHIds.size);
 }
 
 function clearLotHSelection() {
@@ -4184,9 +4188,7 @@ function toggleSignInSelect(id, checked) {
 function updateSignInBatchCount() {
   const countEl = document.getElementById('signInBatchCount');
   if (countEl) countEl.textContent = `已选 ${selectedSignInIds.size} 项`;
-  // 未勾选任何行时隐藏批量操作栏
-  const bar = document.getElementById('signInBatchBar');
-  if (bar) bar.style.display = selectedSignInIds.size > 0 ? '' : 'none';
+  updateBatchBarDisplay('signInBatchBar', selectedSignInIds.size);
 }
 
 function clearSignInSelection() {
@@ -4716,9 +4718,7 @@ function updateDiBatchCount() {
   const count = selectedDiIds.size;
   const el = document.getElementById('diBatchCount');
   if (el) el.textContent = `已选 ${count} 项`;
-  // 未勾选任何行时隐藏批量操作栏
-  const bar = document.getElementById('dutyIssueBatchBar');
-  if (bar) bar.style.display = count > 0 ? '' : 'none';
+  updateBatchBarDisplay('dutyIssueBatchBar', count);
 }
 
 function clearDiSelection() {

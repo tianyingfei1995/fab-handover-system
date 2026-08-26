@@ -314,8 +314,8 @@
           已归档记录
         </button>
       </div>
-      <!-- 批量操作栏：勾选记录后才显示 -->
-      <div class="batch-bar" id="machineBatchBar" style="display:none">
+      <!-- 批量操作栏：未勾选时按钮置灰，「取消选择」隐藏 -->
+      <div class="batch-bar" id="machineBatchBar">
         <div class="batch-bar-left">
           <label class="batch-checkbox-all">
             <input type="checkbox" id="selectAllMachines" onchange="toggleSelectAll(this.checked)">
@@ -409,8 +409,8 @@
           已归档记录
         </button>
       </div>
-      <!-- 批量操作栏：勾选记录后才显示 -->
-      <div class="batch-bar" id="ltMachineBatchBar" style="display:none">
+      <!-- 批量操作栏：未勾选时按钮置灰，「取消选择」隐藏 -->
+      <div class="batch-bar" id="ltMachineBatchBar">
         <div class="batch-bar-left">
           <label class="batch-checkbox-all">
             <input type="checkbox" id="ltSelectAllMachines" onchange="toggleLtSelectAll(this.checked)">
@@ -550,8 +550,8 @@
           已归档记录
         </button>
       </div>
-      <!-- 批量操作栏：勾选记录后才显示 -->
-      <div class="batch-bar" id="lotHandoverBatchBar" style="display:none">
+      <!-- 批量操作栏：未勾选时按钮置灰，「取消选择」隐藏 -->
+      <div class="batch-bar" id="lotHandoverBatchBar">
         <div class="batch-bar-left">
           <label class="batch-checkbox-all">
             <input type="checkbox" onchange="toggleLotHSelectAll(this.checked)">
@@ -621,8 +621,8 @@
           已归档记录
         </button>
       </div>
-      <!-- 批量操作栏：勾选记录后才显示 -->
-      <div class="batch-bar" id="signInBatchBar" style="display:none">
+      <!-- 批量操作栏：未勾选时按钮置灰，「取消选择」隐藏 -->
+      <div class="batch-bar" id="signInBatchBar">
         <div class="batch-bar-left">
           <label class="batch-checkbox-all">
             <input type="checkbox" onchange="toggleSignInSelectAll(this.checked)">
@@ -693,7 +693,7 @@
           已归档记录
         </button>
       </div>
-      <div class="batch-bar" id="dutyIssueBatchBar" style="display:none">
+      <div class="batch-bar" id="dutyIssueBatchBar">
         <div class="batch-bar-left">
           <label class="batch-checkbox-all">
             <input type="checkbox" id="diSelectAll" onchange="toggleDiSelectAll(this.checked)">
@@ -768,7 +768,7 @@
           已归档记录
         </button>
       </div>
-      <div class="batch-bar" id="arHandoverBatchBar" style="display:none">
+      <div class="batch-bar" id="arHandoverBatchBar">
         <div class="batch-bar-left">
           <label class="batch-checkbox-all">
             <input type="checkbox" id="arSelectAll" onchange="toggleArSelectAll(this.checked)">
