@@ -1799,8 +1799,9 @@ app.get('/api/sign-in-members', authMiddleware, (req, res) => {
 const CLEANUP_LOG_DIR = path.join(__dirname, 'data', 'cleanup-logs');
 fs.mkdirSync(CLEANUP_LOG_DIR, { recursive: true });
 
-// 清理条件：只要磁盘空间低于阈值就清理，软删记录无时间保留期，全量过期
-// 因此不设置过期间隔，任何软删记录都立即进入可清理范围
+// 「软删满 N 天才可清理」的时间规则已取消：改为磁盘空间驱动
+// 仅当磁盘剩余 < 10GB（预警）或 < 2GB（紧急）时提醒管理员手动清理，
+// 管理员执行清理时，所有软删记录的图片/附件均纳入可清理范围（无时间保留期）
 const CLEANUP_INTERVAL_DAYS = 0;
 
 // 各表的图片字段配置（包含软删除记录，因为回收站恢复后图片还要用）
@@ -1877,7 +1878,7 @@ function collectActiveReferencedImages(department = null) {
   return referenced;
 }
 
-// 收集"软删除已满半年"的记录对应的图片
+// 收集软删除记录对应的图片（无时间保留期，是否清理由磁盘空间阈值驱动）
 // department 为 null 时收集全部部门
 // 返回 Map: 图片相对路径 -> { table, recordId, department, deletedAt }
 function collectExpiredDeletedImages(department = null) {
@@ -2048,10 +2049,10 @@ function writeCleanupLog(result) {
 
 // 主清理函数
 // dryRun=true 时只扫描不删除，返回将要删除的列表
-// department 为 null 时清理全部（系统管理员），为部门名时只清理该部门过期软删记录的图片
-// 清理范围说明：
-//   - 系统管理员：过期软删记录图片（全部部门）+ 真正的孤儿图片（无任何数据库引用）
-//   - 部门管理员：仅本部门过期软删记录对应的图片（不清理无主孤儿，因无法确定归属）
+// department 为 null 时清理全部（系统管理员），为部门名时只清理该部门软删记录的图片
+// 清理范围说明（软删记录无时间保留期，何时清理由磁盘空间阈值提醒驱动）：
+//   - 系统管理员：软删记录图片/附件（全部部门）+ 真正的孤儿图片（无任何数据库引用）
+//   - 部门管理员：仅本部门软删记录对应的图片/附件（不清理无主孤儿，因无法确定归属）
 function cleanupOrphanImages(dryRun = false, department = null) {
   const result = {
     totalScanned: 0,
@@ -2061,12 +2062,12 @@ function cleanupOrphanImages(dryRun = false, department = null) {
     deletedFiles: [],
     skippedDirs: [],
     department: department,
-    expiredDeletedCount: 0,   // 过期软删记录图片数
+    expiredDeletedCount: 0,   // 软删记录图片/附件数
     trueOrphanCount: 0,       // 真正孤儿图片数
   };
 
   try {
-    // 1. 收集"过期软删除记录"的图片（按部门过滤）
+    // 1. 收集软删除记录的图片（无保留期，按部门过滤）
     const expiredDeletedMap = collectExpiredDeletedImages(department);
     result.expiredDeletedCount = expiredDeletedMap.size;
 
@@ -2100,8 +2101,8 @@ function cleanupOrphanImages(dryRun = false, department = null) {
     // 4. 合并待删除列表，去重
     const toDelete = new Map(); // relPath -> { size, source: 'expired'|'orphan', meta? }
 
-    // 4a. 过期软删记录的图片
-    // 注意：若某文件仍被"有效记录"（未删除）引用，即使同时出现在过期软删记录中也不能删除，
+    // 4a. 软删记录的图片/附件
+    // 注意：若某文件仍被"有效记录"（未删除）引用，即使同时出现在软删记录中也不能删除，
     // 否则会破坏仍在展示中的记录（详情图片/附件打不开）。
     for (const [relPath, meta] of expiredDeletedMap) {
       if (activeRefs.has(relPath)) continue;
@@ -2213,13 +2214,13 @@ function cleanupEmptyDirs(dir) {
   } catch (_) {}
 }
 
-// ─── 磁盘空间监控驱动的孤儿图片清理 ───
-// 当磁盘剩余空间低于阈值时，提醒管理员清理无用图片
-// 清理范围不变：过期软删记录图片 + 无主孤儿图片
+// ─── 磁盘空间监控驱动的数据清理提醒 ───
+// 当磁盘剩余空间低于阈值时，提醒管理员清理（只提醒，不自动删除）
+// 清理范围：本部门软删除记录的图片/附件 + 本部门归属的孤儿文件（无时间保留期）
 
 // 磁盘空间阈值（字节）
-const DISK_WARNING_BYTES = 10 * 1024 * 1024 * 1024;  // 10GB — 开始提醒并自动触发清理
-const DISK_URGENT_BYTES  = 2 * 1024 * 1024 * 1024;  // 2GB — 升级通知部门管理员
+const DISK_WARNING_BYTES = 10 * 1024 * 1024 * 1024;  // 10GB — 预警：提醒各部门管理员清理本部门数据
+const DISK_URGENT_BYTES  = 2 * 1024 * 1024 * 1024;  // 2GB — 紧急：升级通知系统管理员全局清理
 
 // 获取指定路径所在磁盘的剩余空间（字节）
 function getDiskFreeSpace(targetPath = UPLOAD_DIR) {
@@ -2281,46 +2282,37 @@ function saveCleanupNoticeStatus(status) {
 }
 
 // 定期检查磁盘空间（每小时一次）
+// 策略：只提醒、不自动删除。
+//  - 剩余 < 10GB（预警）：提醒各部门管理员登录后清理本部门数据（图片+附件）
+//  - 剩余 < 2GB（紧急）：升级通知系统管理员登录后全局清理兜底
+// 具体是否删除、删什么，始终由管理员在清理界面确认后手动执行
 function scheduleDiskMonitor() {
   const check = () => {
     const freeBytes = getDiskFreeSpace();
     if (freeBytes === null) return;
-    
+
     const freeGB = (freeBytes / (1024 * 1024 * 1024)).toFixed(2);
-    
+
     if (freeBytes < DISK_URGENT_BYTES) {
-      console.log(`[清理] ⚠️ 磁盘剩余 ${freeGB}GB，已低于紧急阈值 2GB，自动触发清理...`);
-      // 自动清理：系统管理员范围（全量），不传 department 即全量
-      try {
-        const result = cleanupOrphanImages(false, null);
-        if (result.deletedCount > 0) {
-          console.log(`[清理] 自动清理完成：删除 ${result.deletedCount} 个文件，释放 ${(result.freedBytes / 1024 / 1024).toFixed(2)}MB`);
-        }
-      } catch (e) {
-        console.error('[清理] 自动清理失败:', e.message);
-      }
+      console.log(`[清理] 🚨 磁盘剩余 ${freeGB}GB，已低于紧急阈值 2GB，等待系统管理员登录后执行全局清理`);
     } else if (freeBytes < DISK_WARNING_BYTES) {
-      console.log(`[清理] 磁盘剩余 ${freeGB}GB，低于预警阈值 10GB，自动触发清理...`);
-      try {
-        const result = cleanupOrphanImages(false, null);
-        if (result.deletedCount > 0) {
-          console.log(`[清理] 自动清理完成：删除 ${result.deletedCount} 个文件，释放 ${(result.freedBytes / 1024 / 1024).toFixed(2)}MB`);
-        }
-      } catch (e) {
-        console.error('[清理] 自动清理失败:', e.message);
-      }
+      console.log(`[清理] ⚠️ 磁盘剩余 ${freeGB}GB，低于预警阈值 10GB，等待各部门管理员登录后清理本部门数据`);
     }
+    // 记录最近一次检查的剩余空间，供通知接口与管理界面参考
+    const status = getCleanupNoticeStatus();
+    status.lastCheckDiskFree = freeBytes;
+    saveCleanupNoticeStatus(status);
   };
-  
+
   // 启动时先检查一次
   check();
-  
+
   // 每小时检查一次
   const ONE_HOUR = 60 * 60 * 1000;
   setInterval(check, ONE_HOUR);
-  
+
   const freeBytes = getDiskFreeSpace();
-  console.log(`[清理] 磁盘空间监控已启动（当前剩余: ${formatDiskSpace(freeBytes)}，预警: 10GB，紧急: 2GB）`);
+  console.log(`[清理] 磁盘空间监控已启动（当前剩余: ${formatDiskSpace(freeBytes)}，预警提醒: 10GB 通知部门管理员，紧急提醒: 2GB 通知系统管理员，不自动删除）`);
 }
 
 // 启动磁盘监控
