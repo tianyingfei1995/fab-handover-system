@@ -5235,6 +5235,25 @@ async function unarchiveItem(type, id) {
   }
 }
 
+// 批量撤销归档弹窗中勾选的记录
+async function batchUnarchiveSelected() {
+  if (!_archiveType) return;
+  const ids = [..._archiveChecked];
+  if (ids.length === 0) {
+    showToast('请先勾选要撤销归档的记录', 'warning');
+    return;
+  }
+  const config = trashConfig[_archiveType];
+  try {
+    const res = await apiCall('POST', `/${config.path}/batch-unarchive`, { ids });
+    showToast(`已撤销归档 ${(res && res.changes !== undefined) ? res.changes : ids.length} 条记录`);
+    openArchiveModal(_archiveType);
+    config.reload();
+  } catch (e) {
+    showToast('批量撤销归档失败', 'error');
+  }
+}
+
 // 删除归档记录（单个/批量通用，软删除进回收站）
 async function deleteArchivedItem(type, ids) {
   const config = trashConfig[type];

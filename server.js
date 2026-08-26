@@ -1300,6 +1300,15 @@ function registerCrudRoutes(opts) {
     res.json({ success: true });
   });
 
+  // 批量撤销归档
+  app.post(`${basePath}/batch-unarchive`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.json({ changes: 0 });
+    const placeholders = ids.map(() => '?').join(', ');
+    const info = db.prepare(`UPDATE ${table} SET archived_at = NULL, updated_at = datetime('now', 'localtime') WHERE id IN (${placeholders}) AND deleted_at IS NULL AND archived_at IS NOT NULL${deptWhere(req)}`).run(...ids, ...deptParam(req));
+    res.json({ changes: info.changes });
+  });
+
   // 归档列表
   app.get(`${basePath}/archived`, authMiddleware, checkModulePermission(module, 'view'), (req, res) => {
     const rows = db.prepare(`SELECT * FROM ${table} WHERE deleted_at IS NULL AND archived_at IS NOT NULL${deptWhere(req)} ORDER BY archived_at DESC`).all(...deptParam(req));
