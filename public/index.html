@@ -226,39 +226,42 @@
         </div>
       </div>
 
-      <!-- 数据看板主体：左侧机台状态图 + 右侧LOT概览 并排 -->
+      <!-- 数据看板主体：左列（状态图 + LOT概览）· 右列（高优先级提醒，与左列等高） -->
       <div class="dash-main-grid">
-        <!-- 机台状态分布 -->
-        <div class="chart-card">
-          <div class="chart-header">
-            <h3>机台近期交接 · 状态分布</h3>
-            <span class="chart-sub">共 <b id="machineChartTotal">0</b> 台</span>
+        <!-- 左列 -->
+        <div class="dash-left-col">
+          <!-- 机台状态分布 -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3>机台近期交接 · 状态分布</h3>
+              <span class="chart-sub">共 <b id="machineChartTotal">0</b> 台</span>
+            </div>
+            <div class="chart-body chart-body-with-legend">
+              <canvas id="machineChart"></canvas>
+            </div>
           </div>
-          <div class="chart-body chart-body-with-legend">
-            <canvas id="machineChart"></canvas>
+
+          <!-- LOT交接概览 -->
+          <div class="dash-summary-card">
+            <div class="dash-summary-header">
+              <h3>LOT交接概览</h3>
+              <span class="dash-summary-count" id="lotSummaryCount">0</span>
+            </div>
+            <div class="dash-summary-body" id="lotSummaryBody">
+              <div class="empty-state">暂无数据</div>
+            </div>
           </div>
         </div>
 
-        <!-- LOT交接概览 -->
-        <div class="dash-summary-card">
-          <div class="dash-summary-header">
-            <h3>LOT交接概览</h3>
-            <span class="dash-summary-count" id="lotSummaryCount">0</span>
+        <!-- 右列：高优先级交接提醒（超出滚动） -->
+        <div class="dashboard-alerts">
+          <div class="alerts-header">
+            <h3>高优先级交接提醒</h3>
+            <span class="alerts-count" id="alertCount">0</span>
           </div>
-          <div class="dash-summary-body" id="lotSummaryBody">
-            <div class="empty-state">暂无数据</div>
+          <div class="alerts-list" id="alertList">
+            <div class="empty-state">暂无高优先级事项</div>
           </div>
-        </div>
-      </div>
-
-      <!-- 高优先级交接提醒 -->
-      <div class="dashboard-alerts">
-        <div class="alerts-header">
-          <h3>高优先级交接提醒</h3>
-          <span class="alerts-count" id="alertCount">0</span>
-        </div>
-        <div class="alerts-list" id="alertList">
-          <div class="empty-state">暂无高优先级事项</div>
         </div>
       </div>
     </section>
