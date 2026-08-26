@@ -70,7 +70,8 @@ function saveUploadOwnership(map) {
 function recordUploadOwnership(paths, req) {
   if (!Array.isArray(paths) || paths.length === 0) return;
   const map = loadUploadOwnership();
-  const dept = (req.user && req.user.department) || '';
+  // admin 上传的文件归属「公共」部门
+  const dept = ((req.user && req.user.department) || '') || (isAdminUser(req) ? '公共' : '');
   const name = (req.user && (req.user.name || req.user.employee_id)) || '';
   const now = new Date().toISOString();
   let changed = false;
@@ -658,10 +659,10 @@ function isAdminUser(req) {
   return req.user && req.user.role === 'admin';
 }
 
-// 返回部门过滤 SQL 片段（admin 不过滤；空部门记录为公共记录，所有部门可见）
+// 返回部门过滤 SQL 片段（admin 不过滤；「公共」/空部门记录为公共记录，所有部门可见）
 function deptWhere(req, col = 'department') {
   if (isAdminUser(req)) return '';
-  return ` AND (${col} = ? OR TRIM(IFNULL(${col}, '')) = '')`;
+  return ` AND (${col} = ? OR ${col} = '公共' OR TRIM(IFNULL(${col}, '')) = '')`;
 }
 
 // 返回部门过滤参数数组（admin 为空）
@@ -1195,9 +1196,9 @@ function registerCrudRoutes(opts) {
         // 仅写入真实存在的列，过滤客户端可能携带的非法/缺失字段
         if (req.body[f] !== undefined && tableCols.has(f)) data[f] = req.body[f];
       }
-      // 部门隔离：非 admin 由服务端强制写入归属部门，禁止客户端篡改
+      // 部门隔离：非 admin 由服务端强制写入归属部门，禁止客户端篡改；admin 创建默认归属「公共」
       if (tableCols.has('department')) {
-        data.department = isAdminUser(req) ? (req.body.department !== undefined ? req.body.department : '') : req.user.department;
+        data.department = isAdminUser(req) ? (req.body.department !== undefined ? req.body.department : '公共') : req.user.department;
       }
       // 自动填充创建人
       if (hasCreatedBy && tableCols.has('created_by')) {
