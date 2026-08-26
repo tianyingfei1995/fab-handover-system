@@ -279,7 +279,7 @@
         </div>
         <div class="filter-group">
           <select id="machineStatusFilter" class="filter-select">
-            <option value="">全部状态</option>
+            <option value="">全部机台状态</option>
             <option value="running">运行中</option>
             <option value="down">停机</option>
             <option value="idle">待机</option>
@@ -289,7 +289,7 @@
             <option value="standby">备用</option>
           </select>
           <select id="machineProcessStatusFilter" class="filter-select">
-            <option value="">全部处理状态</option>
+            <option value="">全部交接处理</option>
             <option value="pending">待处理</option>
             <option value="in_progress">处理中</option>
             <option value="resolved">已解决</option>
@@ -352,7 +352,7 @@
               <th style="min-width:300px;">机台交接信息</th>
               <th style="width:120px;">备注</th>
               <th style="width:70px;">异常记录</th>
-              <th class="sortable" data-key="process_status" onclick="sortMachineTable('process_status')" style="width:80px;">处理状态 <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="process_status" onclick="sortMachineTable('process_status')" style="width:80px;">交接处理 <span class="sort-icon"></span></th>
               <th style="width:70px;">操作</th>
             </tr>
           </thead>
@@ -374,7 +374,7 @@
         </div>
         <div class="filter-group">
           <select id="ltMachineStatusFilter" class="filter-select">
-            <option value="">全部状态</option>
+            <option value="">全部机台状态</option>
             <option value="running">运行中</option>
             <option value="down">停机</option>
             <option value="idle">待机</option>
@@ -384,7 +384,7 @@
             <option value="standby">备用</option>
           </select>
           <select id="ltMachineProcessStatusFilter" class="filter-select">
-            <option value="">全部处理状态</option>
+            <option value="">全部交接处理</option>
             <option value="pending">待处理</option>
             <option value="in_progress">处理中</option>
             <option value="resolved">已解决</option>
@@ -447,7 +447,7 @@
               <th style="min-width:300px;">机台交接信息</th>
               <th style="width:100px;">备注</th>
               <th style="width:80px;">异常记录</th>
-              <th class="sortable" data-key="process_status" onclick="sortLtMachineTable('process_status')" style="width:70px;">处理状态 <span class="sort-icon"></span></th>
+              <th class="sortable" data-key="process_status" onclick="sortLtMachineTable('process_status')" style="width:70px;">交接处理 <span class="sort-icon"></span></th>
               <th style="width:60px;">操作</th>
             </tr>
           </thead>
@@ -992,7 +992,7 @@
             </select>
           </div>
           <div class="form-group">
-            <label>处理状态</label>
+            <label>交接处理</label>
             <select id="mProcessStatus">
               <option value="pending">待处理</option>
               <option value="in_progress">处理中</option>
@@ -1150,7 +1150,7 @@ F："></div>
             </select>
           </div>
           <div class="form-group">
-            <label>处理状态</label>
+            <label>交接处理</label>
             <select id="ltMProcessStatus">
               <option value="pending">待处理</option>
               <option value="in_progress">处理中</option>
@@ -2254,6 +2254,6 @@ F："></div>
     </div>
   </div>
 
-  <script src="js/app.js?v=20260826fix3"></script>
+  <script src="js/app.js?v=20260826fix4"></script>
 </body>
 </html>

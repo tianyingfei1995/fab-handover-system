@@ -2629,7 +2629,7 @@ function showMachineDetail(id) {
   const infoRows = [
     { label: '机台名称', value: escapeHtml(m.machine_name) },
     { label: '机台状态', value: `<span class="status-badge status-${escapeAttr(m.status)}">${escapeHtml(statusText)}</span>` },
-    { label: '处理状态', value: `<span class="status-badge status-${escapeAttr(m.process_status || 'pending')}">${escapeHtml(processStatusText)}</span>` },
+    { label: '交接处理', value: `<span class="status-badge status-${escapeAttr(m.process_status || 'pending')}">${escapeHtml(processStatusText)}</span>` },
     { label: '班次', value: escapeHtml(shiftText) },
     { label: '机台Owner', value: escapeHtml(m.owner || '-') },
     { label: '更新时间', value: escapeHtml(formatDateTime(m.updated_at) || '-') }
@@ -3400,7 +3400,7 @@ function showLtMachineDetail(id) {
   const infoRows = [
     { label: '机台名称', value: escapeHtml(m.machine_name) },
     { label: '机台状态', value: `<span class="status-badge status-${escapeAttr(m.status)}">${escapeHtml(statusText)}</span>` },
-    { label: '处理状态', value: `<span class="status-badge status-${escapeAttr(m.process_status || 'pending')}">${escapeHtml(processStatusText)}</span>` },
+    { label: '交接处理', value: `<span class="status-badge status-${escapeAttr(m.process_status || 'pending')}">${escapeHtml(processStatusText)}</span>` },
     { label: '预计到期时间', value: escapeHtml(shiftText) },
     { label: '机台Owner', value: escapeHtml(m.owner || '-') },
     { label: '更新时间', value: escapeHtml(formatDateTime(m.updated_at) || '-') }
@@ -5172,8 +5172,8 @@ const trashConfig = {
     archiveFilters: {
       search: { fields: ['machine_name', 'owner', 'alarm_info', 'remark'] },
       selects: [
-        { key: 'status', allLabel: '全部状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
-        { key: 'process_status', allLabel: '全部处理状态', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
+        { key: 'status', allLabel: '全部机台状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
+        { key: 'process_status', allLabel: '全部交接处理', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
         { key: 'shift', type: 'multi', allLabel: '全部班次' }
       ]
     }
@@ -5203,8 +5203,8 @@ const trashConfig = {
     archiveFilters: {
       search: { fields: ['machine_name', 'owner', 'alarm_info', 'remark'] },
       selects: [
-        { key: 'status', allLabel: '全部状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
-        { key: 'process_status', allLabel: '全部处理状态', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
+        { key: 'status', allLabel: '全部机台状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
+        { key: 'process_status', allLabel: '全部交接处理', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
         { key: 'shift', type: 'multi', allLabel: '全部班次' }
       ]
     }
