@@ -947,8 +947,8 @@ function openUserModal(id) {
     // 部门管理员限制：不能修改用户部门，不能设置 admin/dept_admin 角色
     const deptSelect = document.getElementById('userDepartment');
     if (u.role === 'admin') {
-      // 超级管理员是系统级的，不需要部门分类，禁用部门字段
-      deptSelect.value = '';
+      // 系统管理员相当于属于所有部门，归属「公共」，禁用部门字段防止误改
+      deptSelect.value = '公共';
       deptSelect.disabled = true;
       // 禁用角色降级选项（防止误操作，只能由系统管理员操作）
       Array.from(roleInput.options).forEach(opt => {
@@ -1760,7 +1760,9 @@ function updateUserDeptSelect() {
   const sel = document.getElementById('userDepartment');
   if (!sel) return;
   const currentVal = sel.value;
+  // 「公共」供系统管理员归属使用（相当于属于所有部门）
   sel.innerHTML = '<option value="">-- 请选择部门 --</option>' +
+    '<option value="公共">公共</option>' +
     departments.map(d => `<option value="${escapeAttr(d.name)}">${escapeHtml(d.name)}</option>`).join('');
   if (currentVal) sel.value = currentVal;
 }
