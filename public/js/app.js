@@ -5160,6 +5160,7 @@ function initMultiSelect(id, getValues, onChange, placeholder) {
   if (!host.dataset.msBound) {
     host.dataset.msBound = '1';
     document.addEventListener('click', e => {
+      if (!e.target.isConnected) return; // 忽略重渲染后游离节点的二次点击（label 触发）
       if (!host.contains(e.target) && _msState[id] && _msState[id].open) {
         _msState[id].open = false;
         renderMultiSelect(id);
@@ -5188,11 +5189,11 @@ function renderMultiSelect(id) {
     <button type="button" class="filter-select ms-toggle" onclick="event.stopPropagation(); toggleMsPanel('${id}')" title="按日期+班次筛选（可多选）">${escapeHtml(btnLabel)} <span class="ms-caret">▾</span></button>
     <div class="ms-panel"${st.open ? ' style="display:block"' : ''}>
       <div class="ms-actions">
-        <a onclick="msSelectAll('${id}', true)">全选</a>
-        <a onclick="msSelectAll('${id}', false)">清空</a>
+        <a onclick="event.stopPropagation(); msSelectAll('${id}', true)">全选</a>
+        <a onclick="event.stopPropagation(); msSelectAll('${id}', false)">清空</a>
       </div>
       <div class="ms-list">${vals.map(v => `
-        <label class="ms-option">
+        <label class="ms-option" onclick="event.stopPropagation()">
           <input type="checkbox" value="${escapeAttr(v)}" ${st.selected.has(v) ? 'checked' : ''} onchange="msToggle('${id}', this.value, this.checked)">
           <span>${escapeHtml(v)}</span>
         </label>`).join('') || '<div class="ms-empty">暂无班次数据</div>'}
