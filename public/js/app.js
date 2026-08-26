@@ -61,6 +61,12 @@ let pendingDelete = null;
 
 const API_BASE = '/api';
 
+// 图表字体与全站字体统一（Chart.js 默认是 Helvetica/Arial，与站内字体不一致）
+if (typeof Chart !== 'undefined') {
+  const siteFont = getComputedStyle(document.body).fontFamily;
+  if (siteFont) Chart.defaults.font.family = siteFont;
+}
+
 // ===== 状态映射 =====
 const STATUS_MAP = {
   machine: {
