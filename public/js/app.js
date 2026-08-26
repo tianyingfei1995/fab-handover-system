@@ -2935,6 +2935,9 @@ function toggleArSelectAll(checked) {
 function updateArBatchCount() {
   const count = selectedArIds.size;
   document.getElementById('arBatchCount').textContent = `已选 ${count} 项`;
+  // 未勾选任何行时隐藏批量操作栏
+  const bar = document.getElementById('arHandoverBatchBar');
+  if (bar) bar.style.display = count > 0 ? '' : 'none';
   const visibleIds = new Set(filteredArIds());
   const allVisible = [...visibleIds].every(id => selectedArIds.has(id));
   document.getElementById('arSelectAll').checked = allVisible;
@@ -3804,6 +3807,9 @@ function toggleLotHSelect(id, checked) {
 function updateLotHBatchCount() {
   const countEl = document.getElementById('lotHBatchCount');
   if (countEl) countEl.textContent = `已选 ${selectedLotHIds.size} 项`;
+  // 未勾选任何行时隐藏批量操作栏
+  const bar = document.getElementById('lotHandoverBatchBar');
+  if (bar) bar.style.display = selectedLotHIds.size > 0 ? '' : 'none';
 }
 
 function clearLotHSelection() {
@@ -4178,6 +4184,9 @@ function toggleSignInSelect(id, checked) {
 function updateSignInBatchCount() {
   const countEl = document.getElementById('signInBatchCount');
   if (countEl) countEl.textContent = `已选 ${selectedSignInIds.size} 项`;
+  // 未勾选任何行时隐藏批量操作栏
+  const bar = document.getElementById('signInBatchBar');
+  if (bar) bar.style.display = selectedSignInIds.size > 0 ? '' : 'none';
 }
 
 function clearSignInSelection() {
@@ -4707,6 +4716,9 @@ function updateDiBatchCount() {
   const count = selectedDiIds.size;
   const el = document.getElementById('diBatchCount');
   if (el) el.textContent = `已选 ${count} 项`;
+  // 未勾选任何行时隐藏批量操作栏
+  const bar = document.getElementById('dutyIssueBatchBar');
+  if (bar) bar.style.display = count > 0 ? '' : 'none';
 }
 
 function clearDiSelection() {
