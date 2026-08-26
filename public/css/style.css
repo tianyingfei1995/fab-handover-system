@@ -492,20 +492,28 @@ kbd {
 .data-table tbody tr:hover { background: var(--bg-hover); }
 .data-table tbody tr:last-child td { border-bottom: none; }
 
-/* ── 交接记录三态行背景（斑马纹已移除，用状态色区分；透明基底可适配任意容器底色）── */
-/* 已解决：极淡绿底，表示正向完成，无需特别关注 */
+/* 已解决：极淡绿底 + 行首绿色斜纹封存带 */
 .data-table tbody tr.row-resolved {
   background: color-mix(in srgb, var(--accent-green) 6%, transparent);
+}
+.data-table tbody tr.row-resolved td:first-child {
+  background-image: repeating-linear-gradient(135deg,
+    color-mix(in srgb, var(--accent-green) 45%, transparent) 0 3px, transparent 3px 9px);
+  background-repeat: no-repeat;
+  background-size: 9px 100%;
 }
 .data-table tbody tr.row-resolved:hover {
   background: color-mix(in srgb, var(--accent-green) 10%, transparent);
 }
-/* 已关闭：淡灰底+左侧细灰条+文字淡化，完结退后感 */
+/* 已关闭：淡灰底 + 行首灰色斜纹封存带 + 文字淡化，完结退后感 */
 .data-table tbody tr.row-closed {
   background: color-mix(in srgb, var(--text-primary) 5%, transparent);
 }
 .data-table tbody tr.row-closed td:first-child {
-  box-shadow: inset 3px 0 0 var(--border-strong);
+  background-image: repeating-linear-gradient(135deg,
+    var(--border-strong) 0 3px, transparent 3px 9px);
+  background-repeat: no-repeat;
+  background-size: 9px 100%;
 }
 .data-table tbody tr.row-closed td,
 .data-table tbody tr.row-closed td strong {
@@ -706,8 +714,25 @@ kbd {
 .handover-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
 /* ── 其他交接卡片三态背景（与表格行同语言）── */
-/* 已关闭：淡灰底+左侧细灰条+文字淡化 */
+/* 公共：左侧斜纹封存带 */
+.handover-card.card-closed::before,
+.handover-card.card-resolved::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 8px;
+  background: repeating-linear-gradient(135deg,
+    var(--border-strong) 0 3px, transparent 3px 9px);
+  pointer-events: none;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+.handover-card.card-resolved::before {
+  background: repeating-linear-gradient(135deg,
+    color-mix(in srgb, var(--accent-green) 45%, transparent) 0 3px, transparent 3px 9px);
+}
+/* 已关闭：淡灰底+文字淡化 */
 .handover-card.card-closed {
+  position: relative;
   background: color-mix(in srgb, var(--text-primary) 5%, var(--bg-secondary));
   border-left: 3px solid var(--border-strong);
 }
@@ -717,6 +742,7 @@ kbd {
 .handover-card.card-closed img { filter: grayscale(0.4); opacity: 0.85; }
 /* 已解决：极淡绿底，正向完成 */
 .handover-card.card-resolved {
+  position: relative;
   background: color-mix(in srgb, var(--accent-green) 6%, var(--bg-secondary));
 }
 .handover-card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
