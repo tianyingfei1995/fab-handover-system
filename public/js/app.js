@@ -1980,7 +1980,30 @@ function renderLoginLogs() {
 // ===== 仪表盘 =====
 const _chartLabels = ['运行中', '停机', '待机', '保养维护中', '异常待处理', '维修中', '备用'];
 const _chartStatuses = ['running', 'down', 'idle', 'maintenance', 'abnormal_pending', 'repairing', 'standby'];
-const _chartColors = ['#059669', '#dc2626', '#2563eb', '#d97706', '#dc2626', '#d97706', '#64748b'];
+// 每个状态一个专属色，语义化且互不重复：绿=运行、红=停机、蓝=待机、紫=保养、橙=异常、砖=维修、灰=备用
+const _chartColors = ['#10b981', '#ef4444', '#3b82f6', '#8b5cf6', '#f59e0b', '#ea580c', '#94a3b8'];
+
+// 环形图中心文字插件：显示总台数
+const _chartCenterText = {
+  id: 'centerText',
+  afterDraw(chart) {
+    const { ctx } = chart;
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || !meta.data || !meta.data.length) return;
+    const { x, y } = meta.data[0];
+    const total = chart.$machineTotal !== undefined ? chart.$machineTotal
+      : chart.config.data.datasets[0].data.reduce((a, b) => a + b, 0);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '700 26px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText(total, x, y - 2);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '500 12px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('总台数', x, y + 18);
+    ctx.restore();
+  }
+};
 
 async function loadDashboard() {
   try {
@@ -2022,12 +2045,88 @@ function renderMachineStatusChart(canvasId, stats, existingChart, setter) {
     const found = stats.find(s => s.status === _chartStatuses[i]);
     return found ? found.count : 0;
   });
+  const total = data.reduce((a, b) => a + b, 0);
+  const isEmpty = total === 0;
   if (existingChart) existingChart.destroy();
-  setter(new Chart(canvas.getContext('2d'), {
+  // 宽屏图例靠右（环形图更大），窄屏靠底
+  const legendPos = (canvas.parentElement.clientWidth >= 430) ? 'right' : 'bottom';
+  const chart = new Chart(canvas.getContext('2d'), {
     type: 'doughnut',
-    data: { labels: _chartLabels, datasets: [{ data, backgroundColor: _chartColors, borderColor: '#e8eef5', borderWidth: 2 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#334155', font: { size: 12, weight: '600' }, padding: 10 } } } }
-  }));
+    data: {
+      labels: isEmpty ? ['暂无数据'] : _chartLabels,
+      datasets: [{
+        data: isEmpty ? [1] : data,
+        backgroundColor: isEmpty ? ['#e2e8f0'] : _chartColors,
+        borderColor: '#ffffff',
+        borderWidth: 3,
+        hoverOffset: isEmpty ? 0 : 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '68%',
+      layout: { padding: 8 },
+      plugins: {
+        legend: {
+          display: !isEmpty,
+          position: legendPos,
+          align: 'center',
+          labels: {
+            color: '#334155',
+            usePointStyle: true,
+            pointStyle: 'circle',
+            boxWidth: 8,
+            boxHeight: 8,
+            padding: 12,
+            font: { size: 12, weight: '500' },
+            // 图例项显示「状态 台数」，台数为 0 的状态不展示
+            generateLabels: (chart) => chart.data.labels.map((label, i) => {
+              const value = chart.data.datasets[0].data[i];
+              return { text: `${label}  ${value}`, fillStyle: chart.data.datasets[0].backgroundColor[i], strokeStyle: '#ffffff', lineWidth: 1, index: i };
+            }).filter((item, i) => chart.data.datasets[0].data[i] > 0)
+          },
+          onClick: (e, legendItem, legend) => {
+            // 图例仅作展示，点击不切换隐藏，避免误触后看不出状态
+            const chart = legend.chart;
+            chart.setActiveElements(legendItem.index !== undefined ? [{ datasetIndex: 0, index: legendItem.index }] : []);
+            chart.tooltip?.setActiveElements(legendItem.index !== undefined ? [{ datasetIndex: 0, index: legendItem.index }] : [], { x: 0, y: 0 });
+            chart.update();
+          },
+          onHover: (e, legendItem, legend) => {
+            e.native.target.style.cursor = 'pointer';
+            legend.chart.setActiveElements([{ datasetIndex: 0, index: legendItem.index }]);
+            legend.chart.tooltip?.setActiveElements([{ datasetIndex: 0, index: legendItem.index }], { x: 0, y: 0 });
+            legend.chart.update();
+          },
+          onLeave: (e, legendItem, legend) => {
+            e.native.target.style.cursor = 'default';
+            legend.chart.setActiveElements([]);
+            legend.chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
+            legend.chart.update();
+          }
+        },
+        tooltip: {
+          enabled: !isEmpty,
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          padding: 10,
+          cornerRadius: 8,
+          titleFont: { size: 13, weight: '600' },
+          bodyFont: { size: 12 },
+          callbacks: {
+            label: (ctx) => {
+              const value = ctx.parsed;
+              const pct = total ? Math.round(value / total * 100) : 0;
+              return ` ${value} 台（占 ${pct}%）`;
+            }
+          }
+        }
+      }
+    },
+    plugins: [_chartCenterText]
+  });
+  chart.$machineTotal = total;
+  setter(chart);
 }
 
 function renderLotSummary() {
