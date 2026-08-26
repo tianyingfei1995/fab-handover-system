@@ -564,7 +564,7 @@
           <span class="batch-count" id="lotHBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
-          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('lot-handover')" title="归档选中的记录（临时隐藏，可撤销）">归档选中</button>
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('lot-handover')" title="移入归档（临时隐藏，可撤销）">移入归档</button>
           <button class="btn btn-danger btn-sm" onclick="batchDeleteLotHandovers()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
@@ -640,7 +640,7 @@
           <span class="batch-count" id="signInBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
-          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('sign-in')" title="归档选中的记录（临时隐藏，可撤销）">归档选中</button>
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('sign-in')" title="移入归档（临时隐藏，可撤销）">移入归档</button>
           <button class="btn btn-danger btn-sm" onclick="batchDeleteSignInSheets()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
@@ -711,7 +711,7 @@
           <span class="batch-count" id="diBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
-          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('duty-issue')" title="归档选中的记录（临时隐藏，可撤销）">归档选中</button>
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('duty-issue')" title="移入归档（临时隐藏，可撤销）">移入归档</button>
           <button class="btn btn-danger btn-sm" onclick="batchDeleteDutyIssues()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
@@ -787,7 +787,7 @@
           <span class="batch-count" id="arBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
-          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('ar-handover')" title="归档选中的记录（临时隐藏，可撤销）">归档选中</button>
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('ar-handover')" title="移入归档（临时隐藏，可撤销）">移入归档</button>
           <button class="btn btn-danger btn-sm" onclick="batchDeleteArHandovers()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
@@ -1983,7 +1983,7 @@ F："></div>
           <span>全选</span>
         </label>
         <span class="batch-count" id="archiveBatchCount">已选 0 项</span>
-        <button class="btn btn-primary btn-sm" onclick="batchUnarchiveSelected()">撤销归档选中</button>
+        <button class="btn btn-primary btn-sm" onclick="batchUnarchiveSelected()" title="撤销归档，恢复显示选中记录">移出归档</button>
         <button class="btn btn-danger btn-sm" onclick="batchDeleteArchived()">删除选中</button>
         <button class="btn btn-ghost" onclick="closeModal('archiveModal')">关闭</button>
       </div>
