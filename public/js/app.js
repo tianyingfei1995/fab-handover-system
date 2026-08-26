@@ -4598,7 +4598,7 @@ function renderDutyIssueTable() {
   }
 
   renderBatchedRows(tbody, filtered, (d, i) => `
-    <tr class="clickable-row${selectedDiIds.has(d.id) ? ' row-selected' : ''}" onclick="showDutyIssueDetail(${d.id})">
+    <tr class="clickable-row${(d.owner_confirm || '').trim() ? ' row-resolved' : ' row-pending'}${selectedDiIds.has(d.id) ? ' row-selected' : ''}" onclick="showDutyIssueDetail(${d.id})">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedDiIds.has(d.id) ? 'checked' : ''} onchange="toggleDiSelect(${d.id}, this.checked)"></td>
       <td style="text-align:center;"><strong>${i + 1}</strong></td>
       <td><div class="cell-expandable cell-html">${sanitizeHtml(d.category1) || '-'}</div></td>
