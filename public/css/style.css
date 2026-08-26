@@ -492,15 +492,21 @@ kbd {
 .data-table tbody tr:hover { background: var(--bg-hover); }
 .data-table tbody tr:last-child td { border-bottom: none; }
 
-/* 处理状态=已关闭：档案化整行样式（灰底+左灰条+文字淡化，醒目识别但不抢注意力） */
+/* 处理状态=已关闭：封存条样式（行首斜纹带+灰底+文字淡化，远距离可辨但不抢注意力） */
 .data-table tbody tr.row-closed {
   background: color-mix(in srgb, var(--bg-secondary) 90%, var(--text-primary) 7%);
-  box-shadow: inset 3px 0 0 var(--border-strong);
 }
 .data-table tbody tr.row-closed td,
 .data-table tbody tr.row-closed td strong {
   color: var(--text-faint);
   font-weight: 500;
+}
+/* 行首斜纹封存带：叠加在第一个单元格最左侧，背景在文字之下不影响可读性 */
+.data-table tbody tr.row-closed td:first-child {
+  background-image: repeating-linear-gradient(135deg,
+    var(--border-strong) 0 3px, transparent 3px 9px);
+  background-repeat: no-repeat;
+  background-size: 9px 100%;
 }
 /* 状态徽章保持原色：行内唯一高饱和元素，保证"已关闭"可识别 */
 .data-table tbody tr.row-closed .status-badge,
@@ -698,10 +704,22 @@ kbd {
 }
 .handover-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
-/* 其他交接卡片：处理状态=已关闭 → 档案化样式（灰底+淡化，醒目识别但不抢注意力） */
+/* 其他交接卡片：处理状态=已关闭 → 封存条样式（左侧斜纹带+灰底+淡化） */
 .handover-card.card-closed {
+  position: relative;
   background: color-mix(in srgb, var(--bg-secondary) 90%, var(--text-primary) 6%);
   border-left: 4px solid var(--border-strong);
+}
+/* 左侧斜纹封存带：叠加在左边框内侧，模拟"封存章" */
+.handover-card.card-closed::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 8px;
+  background: repeating-linear-gradient(135deg,
+    var(--border-strong) 0 3px, transparent 3px 9px);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  pointer-events: none;
 }
 .handover-card.card-closed .handover-card-title { color: var(--text-faint); }
 .handover-card.card-closed .handover-card-content,
