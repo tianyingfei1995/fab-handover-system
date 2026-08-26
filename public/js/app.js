@@ -4366,7 +4366,7 @@ function renderDutyIssueTable() {
   filtered = applyDiSort(filtered);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">暂无值班问题数据，点击"新增问题"添加</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-state">暂无值班问题数据，点击"新增问题"添加</td></tr>`;
     updateDiBatchCount();
     return;
   }
@@ -4388,7 +4388,6 @@ function renderDutyIssueTable() {
       <td><div class="cell-expandable cell-html">${sanitizeHtml(d.problem_process) || '<span class="cell-empty">-</span>'}</div></td>
       <td><div class="cell-expandable cell-html">${sanitizeHtml(d.solution) || '<span class="cell-empty">-</span>'}</div></td>
       <td><div class="cell-expandable cell-html">${sanitizeHtml(d.owner_confirm) || '-'}</div></td>
-      <td>${escapeHtml((d.updated_at || '').substring(0, 16))}</td>
       <td onclick="event.stopPropagation()">
         ${actionButtonsHtml('duty-issue', d.id, 'editDutyIssue', 'deleteDutyIssue')}
       </td>
@@ -4625,10 +4624,6 @@ function showDutyIssueDetail(id) {
       <div class="detail-row">
         <span class="detail-label">Owner confirm</span>
         <span class="detail-value cell-html">${sanitizeHtml(d.owner_confirm) || '-'}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">更新时间</span>
-        <span class="detail-value">${escapeHtml(formatDateTime(d.updated_at) || '-')}</span>
       </div>
       <div class="detail-row detail-row-full">
         <span class="detail-label">截图 (${imagePaths.length}张)</span>
