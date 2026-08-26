@@ -16,6 +16,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const ExcelJS = require('exceljs');
 
 const Database = require('better-sqlite3');
 
@@ -1502,6 +1503,194 @@ registerCrudRoutes({
   module: 'ar-handover',
   fields: ['date', 'ar', 'owner_section', 'due_date', 'status'],
   hasBatchStatus: false
+});
+
+// ─── Excel 导出（一张总表，每个模块一个 Sheet） ─────────
+// 导出范围：未删除记录（含已归档）；非 admin 仅导出本部门数据
+const EXPORT_STATUS_MAP = {
+  machine: { running: '运行中', down: '停机', idle: '待机', maintenance: '保养维护中', abnormal_pending: '异常待处理', repairing: '维修中', standby: '备用' },
+  processStatus: { pending: '待处理', in_progress: '处理中', resolved: '已解决', closed: '已关闭' },
+  handover: { open: '待处理', in_progress: '处理中', resolved: '已解决', closed: '已关闭' },
+  priority: { high: '高', medium: '中', low: '低' },
+  category: { equipment: '设备', process: '工艺', quality: '质量', safety: '安全', other: '其他' },
+  confirm: { confirmed: '已确认', unconfirmed: '未确认' },
+  signInStatus: { present: '出席', late: '迟到', absent: '缺席', leave: '请假', night_shift: '夜班' }
+};
+
+// 去除富文本 HTML 标签
+function exportStripHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p|li)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .trim();
+}
+
+// 解析附件 JSON 为文件名列表
+function exportAttachNames(str) {
+  try {
+    const arr = JSON.parse(str || '[]');
+    return Array.isArray(arr) ? arr.map(a => a.name).filter(Boolean).join('、') : '';
+  } catch (e) { return ''; }
+}
+
+// 读取图片文件为 base64（找不到文件时返回 null）
+function exportReadImage(relPath) {
+  try {
+    const clean = String(relPath).replace(/^\/uploads\//, '');
+    const abs = path.join(UPLOAD_DIR, clean);
+    if (!abs.startsWith(UPLOAD_DIR) || !fs.existsSync(abs) || !fs.statSync(abs).isFile()) return null;
+    const ext = path.extname(abs).toLowerCase().replace('.', '');
+    const extMap = { png: 'png', jpg: 'jpeg', jpeg: 'jpeg', gif: 'gif', bmp: 'gif', webp: 'gif' };
+    const xlExt = extMap[ext];
+    if (!xlExt) return null; // Excel 仅支持 png/jpeg/gif
+    return { base64: fs.readFileSync(abs).toString('base64'), ext: xlExt };
+  } catch (e) { return null; }
+}
+
+// 各模块导出配置：sheet 名、SQL、行数据构造（返回普通单元格值数组 + 图片路径列表）
+const EXPORT_MODULES = [
+  {
+    sheet: '机台近期交接', table: 'machines',
+    sql: `SELECT * FROM machines WHERE deleted_at IS NULL`,
+    columns: ['ID', '机台ID', '机台名称', '机台状态', '区域', '工艺', '处理状态', '班次', '负责人', '机台交接信息', '备注', '附件', '创建时间', '更新时间'],
+    row: r => [
+      r.id, r.machine_id, r.machine_name, EXPORT_STATUS_MAP.machine[r.status] || r.status || '', r.area, r.process,
+      EXPORT_STATUS_MAP.processStatus[r.process_status] || r.process_status || '', r.shift, r.owner,
+      exportStripHtml(r.alarm_info), exportStripHtml(r.remark), exportAttachNames(r.attachments), r.created_at, r.updated_at
+    ],
+    images: r => String(r.image_path || '').split(',').map(p => p.trim()).filter(Boolean)
+  },
+  {
+    sheet: '机台长期交接', table: 'lt_machines',
+    sql: `SELECT * FROM lt_machines WHERE deleted_at IS NULL`,
+    columns: ['ID', '机台ID', '机台名称', '机台状态', '区域', '工艺', '处理状态', '班次', '负责人', '机台交接信息', '备注', '附件', '创建时间', '更新时间'],
+    row: r => [
+      r.id, r.machine_id, r.machine_name, EXPORT_STATUS_MAP.machine[r.status] || r.status || '', r.area, r.process,
+      EXPORT_STATUS_MAP.processStatus[r.process_status] || r.process_status || '', r.shift, r.owner,
+      exportStripHtml(r.alarm_info), exportStripHtml(r.remark), exportAttachNames(r.attachments), r.created_at, r.updated_at
+    ],
+    images: r => String(r.image_path || '').split(',').map(p => p.trim()).filter(Boolean)
+  },
+  {
+    sheet: '日常交接', table: 'daily_handovers',
+    sql: `SELECT * FROM daily_handovers WHERE deleted_at IS NULL`,
+    columns: ['ID', '标题', '内容', '优先级', '类别', '状态', '创建人', '截止日期', '附件', '创建时间', '更新时间'],
+    row: r => [
+      r.id, exportStripHtml(r.title), exportStripHtml(r.content),
+      EXPORT_STATUS_MAP.priority[r.priority] || r.priority || '', EXPORT_STATUS_MAP.category[r.category] || r.category || '',
+      EXPORT_STATUS_MAP.handover[r.status] || r.status || '', r.created_by, r.due_date,
+      exportAttachNames(r.attachments), r.created_at, r.updated_at
+    ],
+    images: r => String(r.image_path || '').split(',').map(p => p.trim()).filter(Boolean)
+  },
+  {
+    sheet: 'LOT交接', table: 'lot_handovers',
+    sql: `SELECT * FROM lot_handovers WHERE deleted_at IS NULL`,
+    columns: ['ID', 'Lot ID', '状态', 'Detail', 'Comment', 'Follow up', '创建人', '附件', '创建时间', '更新时间'],
+    row: r => [
+      r.id, r.lot_id, EXPORT_STATUS_MAP.handover[r.status] || r.status || '',
+      exportStripHtml(r.detail), exportStripHtml(r.comment), exportStripHtml(r.follow_up),
+      r.created_by, exportAttachNames(r.attachments), r.created_at, r.updated_at
+    ],
+    images: r => String(r.follow_up_images || '').split(',').map(p => p.trim()).filter(Boolean)
+  },
+  {
+    sheet: '签到表', table: 'sign_in_sheets',
+    sql: `SELECT * FROM sign_in_sheets WHERE deleted_at IS NULL`,
+    columns: ['ID', '班次时间', '地点', '主持人', '参会人数', '参会人明细', '创建时间', '更新时间'],
+    row: (r) => {
+      let attendees = [];
+      try { attendees = JSON.parse(r.attendees || '[]'); } catch (e) {}
+      const detail = (Array.isArray(attendees) ? attendees : [])
+        .map(a => `${a.engineer || '-'}(${EXPORT_STATUS_MAP.signInStatus[a.status] || a.status || '-'})`).join('、');
+      return [r.id, r.shift_time, r.location, r.host, attendees.length, detail, r.created_at, r.updated_at];
+    },
+    images: () => []
+  },
+  {
+    sheet: '值班问题', table: 'duty_issues',
+    sql: `SELECT * FROM duty_issues WHERE deleted_at IS NULL`,
+    columns: ['ID', '问题归类1', '问题归类2', '问题识别过程', '解决办法', 'Owner确认', '附件', '创建时间', '更新时间'],
+    row: r => [
+      r.id, exportStripHtml(r.category1), exportStripHtml(r.category2),
+      exportStripHtml(r.problem_process), exportStripHtml(r.solution),
+      EXPORT_STATUS_MAP.confirm[r.owner_confirm] || exportStripHtml(r.owner_confirm) || '',
+      exportAttachNames(r.attachments), r.created_at, r.updated_at
+    ],
+    images: r => String(r.image_path || '').split(',').map(p => p.trim()).filter(Boolean)
+  },
+  {
+    sheet: 'AR交接', table: 'ar_handovers',
+    sql: `SELECT * FROM ar_handovers WHERE deleted_at IS NULL`,
+    columns: ['ID', '日期', 'AR内容', 'Owner-Section', '截止日期', '状态', '创建时间', '更新时间'],
+    row: r => [
+      r.id, r.date, exportStripHtml(r.ar), exportStripHtml(r.owner_section), r.due_date,
+      EXPORT_STATUS_MAP.handover[r.status] || r.status || '', r.created_at, r.updated_at
+    ],
+    images: () => []
+  }
+];
+
+// 图片嵌入尺寸（px，等比缩放至该框内）
+const EXPORT_IMG_BOX = { w: 150, h: 100 };
+const EXPORT_IMG_COL_WIDTH = 22;   // 图片列宽（字符）
+const EXPORT_IMG_ROW_HEIGHT = 78;  // 含图片行高（pt）
+
+app.get('/api/export/excel', authMiddleware, async (req, res) => {
+  try {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'FAB 生产日常交接系统';
+
+    for (const mod of EXPORT_MODULES) {
+      const hasDept = mod.table !== 'ar_handovers'; // AR 表无部门字段
+      const sql = hasDept ? `${mod.sql}${deptWhere(req)} ORDER BY id DESC` : `${mod.sql} ORDER BY id DESC`;
+      const rows = db.prepare(sql).all(...(hasDept ? deptParam(req) : []));
+
+      // 先算出图片列总数（决定表头宽度）
+      const imgCounts = rows.map(r => mod.images(r).length);
+      const maxImgs = Math.max(0, ...imgCounts);
+      const ws = wb.addWorksheet(mod.sheet, { views: [{ state: 'frozen', ySplit: 1 }] });
+
+      const headers = [...mod.columns];
+      for (let i = 1; i <= maxImgs; i++) headers.push(`图片${i}`);
+      const headerRow = ws.addRow(headers);
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }; c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }; });
+      ws.columns.forEach((col, i) => { col.width = i >= mod.columns.length ? EXPORT_IMG_COL_WIDTH : 16; });
+
+      rows.forEach((r, ri) => {
+        const imgPaths = mod.images(r);
+        const row = ws.addRow(mod.row(r));
+        row.alignment = { vertical: 'middle', wrapText: true };
+        if (imgPaths.length > 0) row.height = EXPORT_IMG_ROW_HEIGHT;
+
+        imgPaths.forEach((p, pi) => {
+          const img = exportReadImage(p);
+          if (!img) return;
+          const imgId = wb.addImage({ base64: img.base64, extension: img.ext });
+          const colIdx = mod.columns.length + pi; // 0 基列号
+          ws.addImage(imgId, {
+            tl: { col: colIdx, row: ri + 1 }, // 表头为第 0 行
+            ext: { width: EXPORT_IMG_BOX.w, height: EXPORT_IMG_BOX.h },
+            editAs: 'oneCell'
+          });
+        });
+      });
+      if (rows.length === 0) ws.addRow(['（暂无数据）']);
+    }
+
+    const buf = await wb.xlsx.writeBuffer();
+    const fileName = `交接总表_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.send(Buffer.from(buf));
+  } catch (err) {
+    console.error('[导出Excel失败]', err);
+    res.status(500).json({ error: '导出失败：' + err.message });
+  }
 });
 
 // ─── 签到工程师路由 ────────────────────────────────────

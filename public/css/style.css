@@ -390,6 +390,10 @@ kbd {
 .filter-date[data-placeholder]:valid::before,
 .filter-date[data-placeholder]:focus::before { visibility: hidden; }
 
+/* ─── 顶部导出 Excel 按钮 ─── */
+.btn-export-excel { padding: 6px 12px; font-size: 13px; gap: 5px; white-space: nowrap; }
+.btn-export-excel:disabled { opacity: 0.6; cursor: not-allowed; }
+
 /* ─── 按钮 ─── */
 .btn {
   display: inline-flex; align-items: center; gap: 6px;

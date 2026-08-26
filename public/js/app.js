@@ -665,9 +665,45 @@ function applyTableActionPermissions() {
 function updateUserInfo() {
   if (!currentUser) return;
   document.getElementById('userInfoBox').style.display = 'flex';
+  document.getElementById('exportExcelBtn').style.display = '';
   document.getElementById('userName').textContent = currentUser.name;
   document.getElementById('currentUserRole').textContent = ROLE_MAP[currentUser.role] || currentUser.role;
   document.getElementById('userAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
+}
+
+// 导出全部交接数据为一张 Excel 总表（每个模块一个 Sheet；非管理员仅含本部门数据；不含已删除记录）
+async function exportAllToExcel() {
+  const btn = document.getElementById('exportExcelBtn');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '导出中...';
+  try {
+    const resp = await fetch('/api/export/excel', {
+      headers: { 'x-auth-token': getAuthToken() || '' }
+    });
+    if (!resp.ok) {
+      let msg = `导出失败（${resp.status}）`;
+      try { const j = await resp.json(); if (j.error) msg = j.error; } catch (e) {}
+      throw new Error(msg);
+    }
+    const blob = await resp.blob();
+    const disposition = resp.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+    const fileName = match ? decodeURIComponent(match[1]) : `交接总表_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert(e.message || '导出失败，请稍后重试');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
 }
 
 async function doLogin() {
@@ -726,6 +762,7 @@ async function doLogout() {
   currentUser = null;
   userPermissions = {};
   document.getElementById('userInfoBox').style.display = 'none';
+  document.getElementById('exportExcelBtn').style.display = 'none';
   showLoginOverlay();
   showToast('已安全登出');
 }

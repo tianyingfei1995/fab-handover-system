@@ -107,6 +107,11 @@
           </div>
         </div>
       </div>
+      <!-- 导出 Excel 总表（各模块一个 Sheet，仅本部门数据，不含已删除记录） -->
+      <button class="btn btn-ghost btn-export-excel" id="exportExcelBtn" onclick="exportAllToExcel()" style="display:none;" title="导出全部交接数据为一张 Excel 总表（每个模块一个 Sheet）">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        导出Excel
+      </button>
       <div class="user-info-box" id="userInfoBox" style="display:none;">
         <span class="user-avatar" id="userAvatar">--</span>
         <div class="user-detail">
