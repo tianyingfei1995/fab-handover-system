@@ -2520,7 +2520,7 @@ async function batchUpdateProcessStatus() {
   }
   const newStatus = document.getElementById('batchProcessStatus').value;
   if (!newStatus) {
-    showToast('请选择操作类型', 'error');
+    showToast('请先选择要执行的批量操作', 'error');
     return;
   }
   const ids = [...selectedMachineIds];
@@ -3323,7 +3323,7 @@ function clearLtSelection() {
 async function batchUpdateLtProcessStatus() {
   if (selectedLtMachineIds.size === 0) { showToast('请先选择要操作的记录', 'error'); return; }
   const newStatus = document.getElementById('ltBatchProcessStatus').value;
-  if (!newStatus) { showToast('请选择操作类型', 'error'); return; }
+  if (!newStatus) { showToast('请先选择要执行的批量操作', 'error'); return; }
   const ids = [...selectedLtMachineIds];
 
   // 移入归档（临时隐藏，可在归档管理中撤销）

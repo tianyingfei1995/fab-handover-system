@@ -324,18 +324,18 @@
           <span class="batch-count" id="batchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
-          <select id="batchProcessStatus" class="filter-select">
-            <option value="">-- 批量操作 --</option>
-            <option value="pending">待处理</option>
-            <option value="in_progress">处理中</option>
-            <option value="resolved">已解决</option>
-            <option value="closed">已关闭</option>
-            <option value="archive" style="color: #1e50e0; font-weight: 600;">移入归档（临时隐藏）</option>
-            <option value="delete" style="color: #ef4444; font-weight: 600;">— 删除选中记录 —</option>
+          <select id="batchProcessStatus" class="filter-select" title="对已勾选记录执行的操作">
+            <option value="">请选择批量操作…</option>
+            <option value="pending">批量标记为：待处理</option>
+            <option value="in_progress">批量标记为：处理中</option>
+            <option value="resolved">批量标记为：已解决</option>
+            <option value="closed">批量标记为：已关闭</option>
+            <option value="archive" style="color: #1e50e0; font-weight: 600;">将选中记录移入归档（临时隐藏）</option>
+            <option value="delete" style="color: #ef4444; font-weight: 600;">删除选中记录（可在回收站恢复）</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="batchUpdateProcessStatus()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-            应用
+            执行
           </button>
           <button class="btn btn-ghost btn-sm" onclick="clearSelection()">取消选择</button>
         </div>
@@ -419,18 +419,18 @@
           <span class="batch-count" id="ltBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
-          <select id="ltBatchProcessStatus" class="filter-select">
-            <option value="">-- 批量操作 --</option>
-            <option value="pending">待处理</option>
-            <option value="in_progress">处理中</option>
-            <option value="resolved">已解决</option>
-            <option value="closed">已关闭</option>
-            <option value="archive" style="color: #1e50e0; font-weight: 600;">移入归档（临时隐藏）</option>
-            <option value="delete" style="color: #ef4444; font-weight: 600;">— 删除选中记录 —</option>
+          <select id="ltBatchProcessStatus" class="filter-select" title="对已勾选记录执行的操作">
+            <option value="">请选择批量操作…</option>
+            <option value="pending">批量标记为：待处理</option>
+            <option value="in_progress">批量标记为：处理中</option>
+            <option value="resolved">批量标记为：已解决</option>
+            <option value="closed">批量标记为：已关闭</option>
+            <option value="archive" style="color: #1e50e0; font-weight: 600;">将选中记录移入归档（临时隐藏）</option>
+            <option value="delete" style="color: #ef4444; font-weight: 600;">删除选中记录（可在回收站恢复）</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="batchUpdateLtProcessStatus()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-            应用
+            执行
           </button>
           <button class="btn btn-ghost btn-sm" onclick="clearLtSelection()">取消选择</button>
         </div>
