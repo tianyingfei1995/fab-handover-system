@@ -1358,8 +1358,8 @@ kbd {
 #archiveListContainer { max-height: 50vh; overflow-y: auto; }
 
 /* ─── 班次多选下拉（日期+班次，带复选框） ─── */
-.ms-dropdown { position: relative; display: inline-block; }
-.ms-toggle { display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; cursor: pointer; text-align: left; min-width: 110px; }
+.ms-dropdown { position: relative; display: inline-block; max-width: 100%; }
+.ms-toggle { display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; cursor: pointer; text-align: left; min-width: 110px; width: 100%; /* 跟随宿主拉伸，手机端与其他筛选框等宽 */ }
 .ms-caret { font-size: 10px; color: var(--text-faint); flex-shrink: 0; }
 .ms-panel { display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 1200; min-width: 175px; background: var(--bg-primary, #fff); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 6px; }
 .ms-actions { display: flex; gap: 12px; padding: 4px 6px 8px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
