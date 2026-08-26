@@ -2836,10 +2836,6 @@ function showArHandoverDetail(id) {
         <span class="detail-label">Status</span>
         <span class="detail-value"><span class="status-badge ${a.status === 'closed' ? 'status-resolved' : 'status-open'}">${a.status === 'closed' ? '已关闭' : escapeHtml(a.status || '待处理')}</span></span>
       </div>
-      <div class="detail-row">
-        <span class="detail-label">更新时间</span>
-        <span class="detail-value">${escapeHtml(formatDateTime(a.updated_at) || '-')}</span>
-      </div>
       <div class="detail-row detail-row-full">
         <span class="detail-label">AR</span>
         <span class="detail-value cell-html">${sanitizeHtml(a.ar) || '-'}</span>
@@ -3696,10 +3692,6 @@ function showLotHandoverDetail(id) {
       <div class="detail-row">
         <span class="detail-label">状态</span>
         <span class="detail-value"><span class="status-badge ${h.status === 'closed' ? 'status-closed' : 'status-open'}">${h.status === 'closed' ? '已关闭' : (h.status === 'resolved' ? '已解决' : (h.status === 'in_progress' ? '处理中' : '待处理'))}</span></span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">更新时间</span>
-        <span class="detail-value">${escapeHtml(formatDateTime(h.updated_at) || '-')}</span>
       </div>
       <div class="detail-row">
         <span class="detail-label">创建人</span>
@@ -4777,10 +4769,6 @@ function showDailyHandoverDetail(id) {
       <div class="detail-row">
         <span class="detail-label">创建时间</span>
         <span class="detail-value">${escapeHtml(formatDateTime(h.created_at) || '-')}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">更新时间</span>
-        <span class="detail-value">${escapeHtml(formatDateTime(h.updated_at) || '-')}</span>
       </div>
       <div class="detail-row detail-row-full">
         <span class="detail-label">详细内容</span>
