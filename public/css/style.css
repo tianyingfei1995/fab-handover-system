@@ -2692,12 +2692,29 @@ button.dh-chip:focus-visible { outline: 2px solid var(--accent-blue); outline-of
 .dh-meta-item svg { opacity: 0.7; }
 .dh-meta-overdue { color: var(--accent-red); font-weight: 600; }
 
-/* ─── 卡片左侧优先级色条（替代旧的纯类名标记） ─── */
-.handover-card.priority-high   { border-left: 3px solid var(--accent-red); }
-.handover-card.priority-medium { border-left: 3px solid var(--accent-orange); }
-.handover-card.priority-low    { border-left: 3px solid var(--accent-green); }
+/* ─── 卡片优先级视觉层级：越高越醒目 ─── */
+/* 高：红色边条 + 红色轻底 + 红色光晕，最强警示 */
+.handover-card.priority-high {
+  border-left: 4px solid var(--accent-red);
+  background: color-mix(in srgb, var(--accent-red) 7%, var(--bg-secondary));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-red) 22%, transparent), var(--shadow-sm);
+}
+.handover-card.priority-high:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-red) 35%, transparent), var(--shadow-md);
+}
+/* 中：橙色边条 + 极淡橙底 */
+.handover-card.priority-medium {
+  border-left: 3px solid var(--accent-orange);
+  background: color-mix(in srgb, var(--accent-orange) 4%, var(--bg-secondary));
+}
+/* 低：绿色细边条，无底色，最平静 */
+.handover-card.priority-low { border-left: 3px solid var(--accent-green); }
 
-/* 已关闭的卡片统一用灰色档案条覆盖优先级色条（完结态优先于优先级态，避免红条重新吸引注意力） */
+/* 已关闭的卡片统一用灰色档案条覆盖优先级样式（完结态优先于优先级态，避免红光重新吸引注意力） */
 .handover-card.card-closed.priority-high,
 .handover-card.card-closed.priority-medium,
-.handover-card.card-closed.priority-low { border-left-color: var(--border-strong); }
+.handover-card.card-closed.priority-low {
+  border-left: 3px solid var(--border-strong);
+  background: color-mix(in srgb, var(--text-primary) 5%, var(--bg-secondary));
+  box-shadow: none;
+}
