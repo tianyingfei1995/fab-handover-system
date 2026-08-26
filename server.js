@@ -174,6 +174,7 @@ function initDb() {
       comment TEXT DEFAULT '',
       follow_up TEXT DEFAULT '',
       follow_up_images TEXT DEFAULT '',
+      created_by TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime')),
       deleted_at TEXT
@@ -288,6 +289,16 @@ function initDb() {
     if (!cols.some(c => c.name === 'department')) {
       db.exec(`ALTER TABLE ${t} ADD COLUMN department TEXT DEFAULT ''`);
       console.log(`[迁移] 已为 ${t} 表增加 department 字段`);
+    }
+  }
+
+  // created_by 字段迁移：为 lot_handovers 增加创建人列（幂等）
+  const createdByTables = ['lot_handovers'];
+  for (const t of createdByTables) {
+    const cols = db.prepare(`PRAGMA table_info(${t})`).all();
+    if (!cols.some(c => c.name === 'created_by')) {
+      db.exec(`ALTER TABLE ${t} ADD COLUMN created_by TEXT DEFAULT ''`);
+      console.log(`[迁移] 已为 ${t} 表增加 created_by 字段`);
     }
   }
 }
@@ -973,7 +984,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
  * @param {boolean} opts.hasBatchStatus 是否支持批量更新 process_status
  */
 function registerCrudRoutes(opts) {
-  const { basePath, table, module, fields, hasBatchStatus } = opts;
+  const { basePath, table, module, fields, hasBatchStatus, hasCreatedBy } = opts;
 
   // 列表
   app.get(basePath, authMiddleware, checkModulePermission(module, 'view'), (req, res) => {
@@ -990,6 +1001,10 @@ function registerCrudRoutes(opts) {
       }
       // 部门隔离：非 admin 由服务端强制写入归属部门，禁止客户端篡改
       data.department = isAdminUser(req) ? (req.body.department !== undefined ? req.body.department : '') : req.user.department;
+      // 自动填充创建人
+      if (hasCreatedBy) {
+        data.created_by = req.user.name || '';
+      }
       const cols = Object.keys(data);
       if (cols.length === 0) return res.status(400).json({ error: `无有效字段，允许的字段: ${fields.join(', ')}` });
 
@@ -1194,8 +1209,9 @@ registerCrudRoutes({
   basePath: '/api/lot-handovers',
   table: 'lot_handovers',
   module: 'lot-handover',
-  fields: ['lot_id', 'status', 'detail', 'comment', 'follow_up', 'follow_up_images'],
-  hasBatchStatus: false
+  fields: ['lot_id', 'status', 'detail', 'comment', 'follow_up', 'follow_up_images', 'created_by'],
+  hasBatchStatus: false,
+  hasCreatedBy: true
 });
 
 // 交接签到表

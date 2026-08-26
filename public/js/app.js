@@ -3503,7 +3503,7 @@ async function saveLotHandover() {
     }
   } else {
     const tempId = Date.now();
-    lotHandovers.unshift({ id: tempId, ...data, created_at: getChinaTimeStr(), updated_at: getChinaTimeStr() });
+    lotHandovers.unshift({ id: tempId, ...data, created_by: currentUser?.name || '', created_at: getChinaTimeStr(), updated_at: getChinaTimeStr() });
   }
   renderLotHandoverTable();
   showToast(isEdit ? '更新中...' : '创建中...', 'success');
@@ -3558,6 +3558,10 @@ function showLotHandoverDetail(id) {
       <div class="detail-row">
         <span class="detail-label">更新时间</span>
         <span class="detail-value">${escapeHtml(formatDateTime(h.updated_at) || '-')}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">创建人</span>
+        <span class="detail-value">${escapeHtml(h.created_by || '-')}</span>
       </div>
       <div class="detail-row detail-row-full">
         <span class="detail-label">Detail</span>
