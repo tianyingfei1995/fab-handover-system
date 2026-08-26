@@ -10,6 +10,7 @@
  */
 
 const express = require('express');
+const compression = require('compression');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 const multer = require('multer');
@@ -479,12 +480,32 @@ function initDb() {
       console.log(`[迁移] 已为 ${t} 表增加 archived_at 字段`);
     }
   }
+
+  // 常用查询索引（幂等）：部门过滤、状态筛选、排序取数
+  const indexDefs = [
+    ['idx_machines_dept_status', 'machines (department, status)'],
+    ['idx_lt_machines_dept_status', 'lt_machines (department, status)'],
+    ['idx_lot_handovers_dept_created', 'lot_handovers (department, created_at)'],
+    ['idx_sign_in_sheets_dept_created', 'sign_in_sheets (department, created_at)'],
+    ['idx_duty_issues_dept_updated', 'duty_issues (department, updated_at)'],
+    ['idx_daily_handovers_dept_status', 'daily_handovers (department, status, priority)'],
+    ['idx_ar_handovers_dept_status', 'ar_handovers (department, status)'],
+    ['idx_login_logs_login_time', 'login_logs (login_time)']
+  ];
+  for (const [name, def] of indexDefs) {
+    db.exec(`CREATE INDEX IF NOT EXISTS ${name} ON ${def}`);
+  }
 }
 
 initDb();
 
 // ─── Express 应用 ─────────────────────────────────────
 const app = express();
+// gzip 压缩：文本类资源（html/js/css/json）传输体积降约 70%
+app.use(compression({ filter: (req, res) => {
+  if (req.path.startsWith('/uploads/')) return false; // 图片已压缩，不再重复压缩
+  return compression.filter(req, res);
+} }));
 
 // CORS：同源应用默认禁止跨域（页面同源请求不受影响）；如需跨域调用，用环境变量 ALLOWED_ORIGINS 配置白名单（逗号分隔）
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -506,11 +527,11 @@ app.use(express.json({ limit: '4mb' }));
 app.use(express.urlencoded({ extended: true, limit: '4mb' }));
 
 // 静态文件
-// css/js 允许缓存但强制再校验（ETag 命中返回 304，节省带宽且改版后立即生效）；
+// css/js 带 ?v= 版本号引用，改版升版本号即可，可放心长缓存（30天）；
 // uploads 文件名唯一不可变，可长缓存；index.html 不缓存
 app.use((req, res, next) => {
   if (req.path.startsWith('/css/') || req.path.startsWith('/js/') || req.path.startsWith('/lib/')) {
-    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable'); // 30天
   } else if (req.path.startsWith('/uploads/')) {
     res.setHeader('Cache-Control', 'public, max-age=2592000'); // 30天
   }

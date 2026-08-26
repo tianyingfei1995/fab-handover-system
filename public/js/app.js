@@ -2609,7 +2609,7 @@ function renderMachineTable() {
         const imgs = parseImagePaths(m.image_path);
         if (imgs.length === 0) return `<div class="machine-thumb-placeholder"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>`;
         return `<div class="multi-thumb-wrapper">
-          <img class="machine-thumb" src="${escapeAttr(imgs[0])}" onclick="event.stopPropagation(); openLightboxGallery(${m.id})" title="点击查看图片" draggable="false">
+          <img class="machine-thumb" src="${escapeAttr(imgs[0])}" loading="lazy" onclick="event.stopPropagation(); openLightboxGallery(${m.id})" title="点击查看图片" draggable="false">
           ${imgs.length > 1 ? `<span class="multi-thumb-count">${imgs.length}</span>` : ''}
         </div>`;
       })()}</td>
@@ -2779,7 +2779,7 @@ function showMachineDetail(id) {
   const imagePaths = parseImagePaths(m.image_path);
   const imagePathsJson = JSON.stringify(imagePaths).replace(/'/g, "&#39;");
   const imageHtml = imagePaths.length > 0
-    ? `<div class="detail-gallery">${imagePaths.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" onclick='openLightboxArray(${imagePathsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
+    ? `<div class="detail-gallery">${imagePaths.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" loading="lazy" onclick='openLightboxArray(${imagePathsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
     : `<div class="detail-image-placeholder">
          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
          <span>暂无图片</span>
@@ -3397,7 +3397,7 @@ function renderLtMachineTable() {
         const imgs = parseImagePaths(m.image_path);
         if (imgs.length === 0) return `<div class="machine-thumb-placeholder"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>`;
         return `<div class="multi-thumb-wrapper">
-          <img class="machine-thumb" src="${escapeAttr(imgs[0])}" onclick="event.stopPropagation(); openLtLightboxGallery(${m.id})" title="点击查看图片" draggable="false">
+          <img class="machine-thumb" src="${escapeAttr(imgs[0])}" loading="lazy" onclick="event.stopPropagation(); openLtLightboxGallery(${m.id})" title="点击查看图片" draggable="false">
           ${imgs.length > 1 ? `<span class="multi-thumb-count">${imgs.length}</span>` : ''}
         </div>`;
       })()}</td>
@@ -3550,7 +3550,7 @@ function showLtMachineDetail(id) {
   const imagePaths = parseImagePaths(m.image_path);
   const imagePathsJson = JSON.stringify(imagePaths).replace(/'/g, "&#39;");
   const imageHtml = imagePaths.length > 0
-    ? `<div class="detail-gallery">${imagePaths.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" onclick='openLightboxArray(${imagePathsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
+    ? `<div class="detail-gallery">${imagePaths.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" loading="lazy" onclick='openLightboxArray(${imagePathsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
     : `<div class="detail-image-placeholder"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><span>暂无图片</span></div>`;
 
   const alarmHtml = m.alarm_info ? `<div class="detail-alarm-content">${sanitizeHtml(m.alarm_info)}</div>` : `<div class="detail-remark-empty">暂无机台交接信息</div>`;
@@ -3949,7 +3949,7 @@ function showLotHandoverDetail(id) {
   const imagePaths = parseImagePaths(h.follow_up_images);
   const imagePathsJson = JSON.stringify(imagePaths).replace(/'/g, "&#39;");
   const imageHtml = imagePaths.length > 0
-    ? `<div class="detail-gallery">${imagePaths.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" onclick='openLightboxArray(${imagePathsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
+    ? `<div class="detail-gallery">${imagePaths.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" loading="lazy" onclick='openLightboxArray(${imagePathsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
     : `<div class="detail-image-placeholder">
          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
          <span>暂无图片</span>
@@ -4644,7 +4644,7 @@ function renderDutyIssueTable() {
         const imgs = parseImagePaths(d.image_path);
         if (imgs.length === 0) return `<div class="machine-thumb-placeholder"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>`;
         return `<div class="multi-thumb-wrapper">
-          <img class="machine-thumb" src="${escapeAttr(imgs[0])}" onclick="event.stopPropagation(); openDiLightboxGallery(${d.id})" title="点击查看图片" draggable="false">
+          <img class="machine-thumb" src="${escapeAttr(imgs[0])}" loading="lazy" onclick="event.stopPropagation(); openDiLightboxGallery(${d.id})" title="点击查看图片" draggable="false">
           ${imgs.length > 1 ? `<span class="multi-thumb-count">${imgs.length}</span>` : ''}
         </div>`;
       })()}</td>
@@ -4862,7 +4862,7 @@ function showDutyIssueDetail(id) {
   const imagePaths = parseImagePaths(d.image_path);
   const imagePathsJson = JSON.stringify(imagePaths).replace(/'/g, "&#39;");
   const imageHtml = imagePaths.length > 0
-    ? `<div class="detail-gallery">${imagePaths.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" onclick='openLightboxArray(${imagePathsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
+    ? `<div class="detail-gallery">${imagePaths.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" loading="lazy" onclick='openLightboxArray(${imagePathsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
     : `<div class="detail-image-placeholder"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><span>暂无图片</span></div>`;
 
   const body = document.getElementById('dutyIssueDetailBody');
@@ -4996,7 +4996,7 @@ function renderDailyHandoverCards() {
     const imgs = parseImagePaths(h.image_path);
     const imageHtml = imgs.length > 0
       ? `<div class="handover-card-images">
-           <img class="handover-card-thumb" src="${escapeAttr(imgs[0])}" onclick="event.stopPropagation(); openDhLightboxGallery(${h.id})" title="点击查看图片" draggable="false">
+           <img class="handover-card-thumb" src="${escapeAttr(imgs[0])}" loading="lazy" onclick="event.stopPropagation(); openDhLightboxGallery(${h.id})" title="点击查看图片" draggable="false">
            ${imgs.length > 1 ? `<span class="handover-card-img-count">${imgs.length}</span>` : ''}
          </div>`
       : '';
@@ -5071,7 +5071,7 @@ function showDailyHandoverDetail(id) {
   const imgs = parseImagePaths(h.image_path);
   const imgsJson = JSON.stringify(imgs);
   const imageHtml = imgs.length > 0
-    ? `<div class="detail-gallery">${imgs.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" onclick='openLightboxArray(${imgsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
+    ? `<div class="detail-gallery">${imgs.map((p, i) => `<div class="detail-gallery-item"><img src="${escapeAttr(p)}" loading="lazy" onclick='openLightboxArray(${imgsJson}, ${i})' title="点击查看大图" draggable="false"></div>`).join('')}</div>`
     : `<div class="detail-image-placeholder"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><span>暂无图片</span></div>`;
 
   const body = document.getElementById('dhDetailBody');
