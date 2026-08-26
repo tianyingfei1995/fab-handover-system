@@ -2307,7 +2307,9 @@ function renderMachineTable() {
   let filtered = machines.filter(m => {
     const matchSearch = !search ||
       (m.machine_name || '').toLowerCase().includes(search) ||
-      (m.owner || '').toLowerCase().includes(search);
+      (m.owner || '').toLowerCase().includes(search) ||
+      stripHtml(m.alarm_info || '').toLowerCase().includes(search) ||
+      (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -3093,7 +3095,9 @@ function renderLtMachineTable() {
   let filtered = ltMachines.filter(m => {
     const matchSearch = !search ||
       (m.machine_name || '').toLowerCase().includes(search) ||
-      (m.owner || '').toLowerCase().includes(search);
+      (m.owner || '').toLowerCase().includes(search) ||
+      stripHtml(m.alarm_info || '').toLowerCase().includes(search) ||
+      (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     return matchSearch && matchStatus;
   });
