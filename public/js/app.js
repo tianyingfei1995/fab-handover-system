@@ -2196,6 +2196,8 @@ function filteredMachineIds() {
   const statusFilter = document.getElementById('machineStatusFilter').value;
   const processStatusFilter = document.getElementById('machineProcessStatusFilter') ? document.getElementById('machineProcessStatusFilter').value : '';
   const shiftFilter = document.getElementById('machineShiftFilter') ? document.getElementById('machineShiftFilter').value : '';
+  const shiftDateEl = document.getElementById('machineShiftDateFilter');
+  const shiftDateFilter = shiftDateEl ? shiftDateEl.value : '';
   let filtered = machines.filter(m => {
     const matchSearch = !search ||
       (m.machine_name || '').toLowerCase().includes(search) ||
@@ -2205,7 +2207,8 @@ function filteredMachineIds() {
     const matchStatus = !statusFilter || m.status === statusFilter;
     const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
     const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
-    return matchSearch && matchStatus && matchProcessStatus && matchShift;
+    const matchShiftDate = !shiftDateFilter || (m.shift || '').startsWith(shiftDateFilter);
+    return matchSearch && matchStatus && matchProcessStatus && matchShift && matchShiftDate;
   });
   _cachedFilteredMachineIds = applyMachineSort(filtered).map(m => m.id);
   return _cachedFilteredMachineIds;
@@ -2317,6 +2320,8 @@ function renderMachineTable() {
   const statusFilter = statusEl ? statusEl.value : '';
   const processStatusFilter = processEl ? processEl.value : '';
   const shiftFilter = shiftEl ? shiftEl.value : '';
+  const shiftDateEl = document.getElementById('machineShiftDateFilter');
+  const shiftDateFilter = shiftDateEl ? shiftDateEl.value : '';
 
   let filtered = machines.filter(m => {
     const matchSearch = !search ||
@@ -2327,7 +2332,8 @@ function renderMachineTable() {
     const matchStatus = !statusFilter || m.status === statusFilter;
     const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
     const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
-    return matchSearch && matchStatus && matchProcessStatus && matchShift;
+    const matchShiftDate = !shiftDateFilter || (m.shift || '').startsWith(shiftDateFilter);
+    return matchSearch && matchStatus && matchProcessStatus && matchShift && matchShiftDate;
   });
 
   // 应用排序
@@ -3006,6 +3012,8 @@ function filteredLtMachineIds() {
   const statusFilter = statusEl ? statusEl.value : '';
   const processStatusFilter = processEl ? processEl.value : '';
   const shiftFilter = shiftEl ? shiftEl.value : '';
+  const shiftDateEl = document.getElementById('ltMachineShiftDateFilter');
+  const shiftDateFilter = shiftDateEl ? shiftDateEl.value : '';
   let filtered = ltMachines.filter(m => {
     const matchSearch = !search ||
       (m.machine_name || '').toLowerCase().includes(search) ||
@@ -3015,7 +3023,8 @@ function filteredLtMachineIds() {
     const matchStatus = !statusFilter || m.status === statusFilter;
     const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
     const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
-    return matchSearch && matchStatus && matchProcessStatus && matchShift;
+    const matchShiftDate = !shiftDateFilter || (m.shift || '').startsWith(shiftDateFilter);
+    return matchSearch && matchStatus && matchProcessStatus && matchShift && matchShiftDate;
   });
   _cachedLtFilteredMachineIds = applyLtMachineSort(filtered).map(m => m.id);
   return _cachedLtFilteredMachineIds;
@@ -3108,6 +3117,8 @@ function renderLtMachineTable() {
   const statusFilter = statusEl ? statusEl.value : '';
   const processStatusFilter = processEl ? processEl.value : '';
   const shiftFilter = shiftEl ? shiftEl.value : '';
+  const ltShiftDateEl = document.getElementById('ltMachineShiftDateFilter');
+  const ltShiftDateFilter = ltShiftDateEl ? ltShiftDateEl.value : '';
 
   let filtered = ltMachines.filter(m => {
     const matchSearch = !search ||
@@ -3118,7 +3129,8 @@ function renderLtMachineTable() {
     const matchStatus = !statusFilter || m.status === statusFilter;
     const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
     const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
-    return matchSearch && matchStatus && matchProcessStatus && matchShift;
+    const matchShiftDate = !ltShiftDateFilter || (m.shift || '').startsWith(ltShiftDateFilter);
+    return matchSearch && matchStatus && matchProcessStatus && matchShift && matchShiftDate;
   });
 
   filtered = applyLtMachineSort(filtered);
@@ -4997,7 +5009,8 @@ const trashConfig = {
         { key: 'status', allLabel: '全部状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
         { key: 'process_status', allLabel: '全部处理状态', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
         { key: 'shift', allLabel: '全部班次', options: [['白班','白班'],['夜班','夜班']], mode: 'includes' }
-      ]
+      ],
+      dateKey: 'shift'
     }
   },
   'daily-handover': {
@@ -5028,7 +5041,8 @@ const trashConfig = {
         { key: 'status', allLabel: '全部状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
         { key: 'process_status', allLabel: '全部处理状态', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
         { key: 'shift', allLabel: '全部班次', options: [['白班','白班'],['夜班','夜班']], mode: 'includes' }
-      ]
+      ],
+      dateKey: 'shift'
     }
   },
   'lot-handover': {
@@ -5501,8 +5515,10 @@ document.getElementById('arHandoverStatusFilter').addEventListener('change', () 
 // 新增筛选器事件监听
 document.getElementById('machineProcessStatusFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
 document.getElementById('machineShiftFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
+document.getElementById('machineShiftDateFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
 document.getElementById('ltMachineProcessStatusFilter').addEventListener('change', () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); });
 document.getElementById('ltMachineShiftFilter').addEventListener('change', () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); });
+document.getElementById('ltMachineShiftDateFilter').addEventListener('change', () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); });
 document.getElementById('lotHandoverStatusFilter').addEventListener('change', renderLotHandoverTable);
 document.getElementById('signInShiftFilter').addEventListener('change', renderSignInTable);
 
@@ -5543,6 +5559,7 @@ function resetMachineFilters() {
   document.getElementById('machineStatusFilter').value = '';
   document.getElementById('machineProcessStatusFilter').value = '';
   document.getElementById('machineShiftFilter').value = '';
+  document.getElementById('machineShiftDateFilter').value = '';
   _cachedFilteredMachineIds = null;
   renderMachineTable();
 }
@@ -5551,6 +5568,7 @@ function resetLtMachineFilters() {
   document.getElementById('ltMachineStatusFilter').value = '';
   document.getElementById('ltMachineProcessStatusFilter').value = '';
   document.getElementById('ltMachineShiftFilter').value = '';
+  document.getElementById('ltMachineShiftDateFilter').value = '';
   _cachedLtFilteredMachineIds = null;
   renderLtMachineTable();
 }
