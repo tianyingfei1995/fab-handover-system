@@ -88,7 +88,7 @@ const STATUS_MAP = {
 // ===== 工具函数 =====
 // 处理状态 → 行样式类：待处理/处理中醒目（色条+轻底），已解决/已关闭文字淡化
 function statusRowClass(s) {
-  if (s === 'pending') return ' row-pending';
+  if (s === 'pending' || s === 'open') return ' row-pending';  // LOT/AR交接用'open'表示待处理
   if (s === 'in_progress') return ' row-progress';
   if (s === 'resolved') return ' row-resolved';
   if (s === 'closed') return ' row-closed';
@@ -97,7 +97,7 @@ function statusRowClass(s) {
 
 // 处理状态 → 卡片样式类（与 statusRowClass 同语言）
 function statusCardClass(s) {
-  if (s === 'pending') return ' card-pending';
+  if (s === 'pending' || s === 'open') return ' card-pending';
   if (s === 'in_progress') return ' card-progress';
   if (s === 'resolved') return ' card-resolved';
   if (s === 'closed') return ' card-closed';
