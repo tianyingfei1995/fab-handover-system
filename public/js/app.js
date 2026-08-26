@@ -622,6 +622,9 @@ function actionButtonsHtml(module, id, editFn, deleteFn) {
     </button>`;
   }
   if (canDelete) {
+    html += `<button class="action-btn archive" onclick="event.stopPropagation(); archiveRecords('${module}', [${id}])" title="归档（临时隐藏）">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+    </button>`;
     html += `<button class="action-btn delete" onclick="event.stopPropagation(); ${deleteFn}(${id})" title="删除">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
     </button>`;
@@ -5092,6 +5095,173 @@ async function permanentlyDelete(type, id) {
   } catch (e) {
     showToast('删除失败', 'error');
   }
+}
+
+// ===== 归档功能（临时隐藏记录，可在归档管理中撤销归档） =====
+
+// 各模块选中集合与重渲染映射（用于批量归档后清空选择）
+const archiveSelectMap = {
+  'machine':     { get: () => selectedMachineIds,   clear: () => { selectedMachineIds.clear(); renderMachineTable(); } },
+  'lt-machine':  { get: () => selectedLtMachineIds, clear: () => { selectedLtMachineIds.clear(); renderLtMachineTable(); } },
+  'lot-handover':{ get: () => selectedLotHIds,      clear: () => { selectedLotHIds.clear(); renderLotHandoverTable(); } },
+  'sign-in':     { get: () => selectedSignInIds,    clear: () => { selectedSignInIds.clear(); renderSignInTable(); } },
+  'duty-issue':  { get: () => selectedDiIds,        clear: () => { selectedDiIds.clear(); renderDutyIssueTable(); } },
+  'ar-handover': { get: () => selectedArIds,        clear: () => { selectedArIds.clear(); renderArHandoverTable(); } },
+};
+
+// 归档（单个/批量通用）
+async function archiveRecords(type, ids) {
+  const config = trashConfig[type];
+  if (!config || !Array.isArray(ids) || ids.length === 0) return;
+  try {
+    const res = await apiCall('POST', `/${config.path}/batch-archive`, { ids });
+    showToast(`已归档 ${(res && res.changes !== undefined) ? res.changes : ids.length} 条记录`);
+    const ui = archiveSelectMap[type];
+    if (ui) ui.clear();
+    await config.reload();
+  } catch (e) {
+    showToast('归档失败', 'error');
+  }
+}
+
+// 批量归档当前勾选的记录
+function batchArchiveSelected(type) {
+  const ui = archiveSelectMap[type];
+  if (!ui) return;
+  const ids = [...ui.get()];
+  if (ids.length === 0) {
+    showToast('请先勾选要归档的记录', 'warning');
+    return;
+  }
+  archiveRecords(type, ids);
+}
+
+// 归档管理弹窗：勾选集合与当前模块
+let _archiveType = null;
+let _archiveChecked = new Set();
+let _archiveTotal = 0;
+
+function updateArchiveBatchBar() {
+  const countEl = document.getElementById('archiveBatchCount');
+  const selectAllEl = document.getElementById('archiveSelectAll');
+  if (countEl) countEl.textContent = `已选 ${_archiveChecked.size} 项`;
+  if (selectAllEl) {
+    selectAllEl.checked = _archiveTotal > 0 && _archiveChecked.size === _archiveTotal;
+    selectAllEl.disabled = _archiveTotal === 0;
+  }
+}
+
+function toggleArchiveCheck(id, checked) {
+  if (checked) _archiveChecked.add(id); else _archiveChecked.delete(id);
+  updateArchiveBatchBar();
+}
+
+function toggleArchiveSelectAll(checked) {
+  document.querySelectorAll('#archiveModalBody input[type="checkbox"]').forEach(cb => {
+    const id = parseInt(cb.dataset.id);
+    if (Number.isNaN(id)) return;
+    cb.checked = checked;
+    if (checked) _archiveChecked.add(id); else _archiveChecked.delete(id);
+  });
+  updateArchiveBatchBar();
+}
+
+async function openArchiveModal(type) {
+  const config = trashConfig[type];
+  if (!config) return;
+  _archiveType = type;
+  _archiveChecked = new Set();
+  _archiveTotal = 0;
+  document.getElementById('archiveModalTitle').textContent = `${config.label}归档管理`;
+  const body = document.getElementById('archiveModalBody');
+  body.innerHTML = '<div class="trash-loading">加载中...</div>';
+  updateArchiveBatchBar();
+  openModal('archiveModal');
+
+  try {
+    const items = await apiCall('GET', `/${config.path}/archived`);
+    if (!items || items.length === 0) {
+      _archiveTotal = 0;
+      body.innerHTML = `
+        <div class="trash-empty">
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          <span>暂无归档记录</span>
+        </div>`;
+      updateArchiveBatchBar();
+      return;
+    }
+    _archiveTotal = items.length;
+    body.innerHTML = items.map(item => {
+      const info = config.renderItem(item);
+      return `
+        <div class="trash-item">
+          <label class="archive-check" onclick="event.stopPropagation()">
+            <input type="checkbox" data-id="${item.id}" onchange="toggleArchiveCheck(${item.id}, this.checked)">
+          </label>
+          <div class="trash-item-info">
+            <div class="trash-item-title">${escapeHtml(info.title)}</div>
+            <div class="trash-item-desc">${escapeHtml(info.desc)}</div>
+            <div class="trash-item-time">归档时间: ${formatDateTime(item.archived_at)}</div>
+          </div>
+          <div class="trash-item-actions">
+            <button class="btn btn-primary btn-sm" onclick="unarchiveItem('${type}', ${item.id})">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              撤销归档
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="deleteArchivedItem('${type}', [${item.id}])">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              删除
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+    updateArchiveBatchBar();
+  } catch (e) {
+    body.innerHTML = '<div class="trash-empty">加载失败，请重试</div>';
+  }
+}
+
+// 撤销归档（恢复显示）
+async function unarchiveItem(type, id) {
+  const config = trashConfig[type];
+  if (!config) return;
+  try {
+    await apiCall('PATCH', `/${config.path}/${id}/unarchive`);
+    showToast('已撤销归档，记录已恢复显示');
+    openArchiveModal(type);
+    config.reload();
+  } catch (e) {
+    showToast('撤销归档失败', 'error');
+  }
+}
+
+// 删除归档记录（单个/批量通用，软删除进回收站）
+async function deleteArchivedItem(type, ids) {
+  const config = trashConfig[type];
+  if (!config || !Array.isArray(ids) || ids.length === 0) return;
+  if (!confirm(`确定删除选中的 ${ids.length} 条归档记录吗？删除后可在回收站中恢复。`)) return;
+  try {
+    if (ids.length === 1) {
+      await apiCall('DELETE', `/${config.path}/${ids[0]}`);
+    } else {
+      await apiCall('POST', `/${config.path}/batch-delete`, { ids });
+    }
+    showToast('已删除，可在回收站中恢复');
+    openArchiveModal(type);
+  } catch (e) {
+    showToast('删除失败', 'error');
+  }
+}
+
+// 批量删除归档弹窗中勾选的记录
+function batchDeleteArchived() {
+  if (!_archiveType) return;
+  const ids = [..._archiveChecked];
+  if (ids.length === 0) {
+    showToast('请先勾选要删除的记录', 'warning');
+    return;
+  }
+  deleteArchivedItem(_archiveType, ids);
 }
 
 // ===== 搜索与筛选事件 =====

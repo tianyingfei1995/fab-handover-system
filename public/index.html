@@ -305,6 +305,10 @@
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           回收站
         </button>
+        <button class="btn btn-ghost btn-archive" onclick="openArchiveModal('machine')" title="查看已归档的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          归档
+        </button>
       </div>
       <!-- 批量操作栏 -->
       <div class="batch-bar">
@@ -316,6 +320,7 @@
           <span class="batch-count" id="batchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('machine')" title="归档选中的机台（临时隐藏，可撤销）">归档选中</button>
           <select id="batchProcessStatus" class="filter-select">
             <option value="">-- 批量修改处理状态 --</option>
             <option value="pending">待处理</option>
@@ -399,6 +404,10 @@
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           回收站
         </button>
+        <button class="btn btn-ghost btn-archive" onclick="openArchiveModal('lt-machine')" title="查看已归档的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          归档
+        </button>
       </div>
       <!-- 批量操作栏 -->
       <div class="batch-bar">
@@ -410,6 +419,7 @@
           <span class="batch-count" id="ltBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('lt-machine')" title="归档选中的机台（临时隐藏，可撤销）">归档选中</button>
           <select id="ltBatchProcessStatus" class="filter-select">
             <option value="">-- 批量修改处理状态 --</option>
             <option value="pending">待处理</option>
@@ -495,6 +505,10 @@
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           回收站
         </button>
+        <button class="btn btn-ghost btn-archive" onclick="openArchiveModal('daily-handover')" title="查看已归档的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          归档
+        </button>
       </div>
       <div class="handover-grid" id="dailyHandoverGrid"></div>
     </section>
@@ -535,6 +549,10 @@
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           回收站
         </button>
+        <button class="btn btn-ghost btn-archive" onclick="openArchiveModal('lot-handover')" title="查看已归档的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          归档
+        </button>
       </div>
       <!-- 批量操作栏 -->
       <div class="batch-bar">
@@ -546,6 +564,7 @@
           <span class="batch-count" id="lotHBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('lot-handover')" title="归档选中的记录（临时隐藏，可撤销）">归档选中</button>
           <button class="btn btn-danger btn-sm" onclick="batchDeleteLotHandovers()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
@@ -606,6 +625,10 @@
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           回收站
         </button>
+        <button class="btn btn-ghost btn-archive" onclick="openArchiveModal('sign-in')" title="查看已归档的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          归档
+        </button>
       </div>
       <!-- 批量操作栏 -->
       <div class="batch-bar">
@@ -617,6 +640,7 @@
           <span class="batch-count" id="signInBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('sign-in')" title="归档选中的记录（临时隐藏，可撤销）">归档选中</button>
           <button class="btn btn-danger btn-sm" onclick="batchDeleteSignInSheets()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
@@ -673,6 +697,10 @@
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           回收站
         </button>
+        <button class="btn btn-ghost btn-archive" onclick="openArchiveModal('duty-issue')" title="查看已归档的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          归档
+        </button>
       </div>
       <div class="batch-bar">
         <div class="batch-bar-left">
@@ -683,6 +711,7 @@
           <span class="batch-count" id="diBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('duty-issue')" title="归档选中的记录（临时隐藏，可撤销）">归档选中</button>
           <button class="btn btn-danger btn-sm" onclick="batchDeleteDutyIssues()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
@@ -744,6 +773,10 @@
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           回收站
         </button>
+        <button class="btn btn-ghost btn-archive" onclick="openArchiveModal('ar-handover')" title="查看已归档的记录">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          归档
+        </button>
       </div>
       <div class="batch-bar">
         <div class="batch-bar-left">
@@ -754,6 +787,7 @@
           <span class="batch-count" id="arBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
+          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('ar-handover')" title="归档选中的记录（临时隐藏，可撤销）">归档选中</button>
           <button class="btn btn-danger btn-sm" onclick="batchDeleteArHandovers()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
@@ -1929,6 +1963,28 @@ F："></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('trashModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 归档管理弹窗 -->
+  <div class="modal-overlay" id="archiveModal">
+    <div class="modal modal-trash">
+      <div class="modal-header">
+        <h2 id="archiveModalTitle">归档管理</h2>
+        <button class="modal-close" onclick="closeModal('archiveModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="archiveModalBody">
+        <div class="trash-empty">暂无归档记录</div>
+      </div>
+      <div class="modal-footer archive-modal-footer">
+        <label class="archive-check-all">
+          <input type="checkbox" id="archiveSelectAll" onchange="toggleArchiveSelectAll(this.checked)">
+          <span>全选</span>
+        </label>
+        <span class="batch-count" id="archiveBatchCount">已选 0 项</span>
+        <button class="btn btn-danger btn-sm" onclick="batchDeleteArchived()">删除选中</button>
+        <button class="btn btn-ghost" onclick="closeModal('archiveModal')">关闭</button>
       </div>
     </div>
   </div>

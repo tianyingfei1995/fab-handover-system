@@ -466,6 +466,16 @@ function initDb() {
       console.log(`[迁移] 已为 ${t} 表增加 attachments 字段`);
     }
   }
+
+  // archived_at 字段迁移：为各业务表增加归档时间列（幂等，用于临时隐藏记录）
+  const archiveTables = ['machines', 'lt_machines', 'lot_handovers', 'sign_in_sheets', 'duty_issues', 'daily_handovers', 'ar_handovers'];
+  for (const t of archiveTables) {
+    const cols = db.prepare(`PRAGMA table_info(${t})`).all();
+    if (!cols.some(c => c.name === 'archived_at')) {
+      db.exec(`ALTER TABLE ${t} ADD COLUMN archived_at TEXT`);
+      console.log(`[迁移] 已为 ${t} 表增加 archived_at 字段`);
+    }
+  }
 }
 
 initDb();
@@ -1131,19 +1141,19 @@ app.get('/api/login-logs', authMiddleware, requireRole('admin'), (req, res) => {
 
 // ─── 仪表盘路由 ───────────────────────────────────────
 app.get('/api/dashboard', authMiddleware, (req, res) => {
-  const totalMachines = db.prepare(`SELECT COUNT(*) as c FROM machines WHERE deleted_at IS NULL${deptWhere(req)}`).get(...deptParam(req)).c;
-  const totalLtMachines = db.prepare(`SELECT COUNT(*) as c FROM lt_machines WHERE deleted_at IS NULL${deptWhere(req)}`).get(...deptParam(req)).c;
-  const totalLots = db.prepare(`SELECT COUNT(*) as c FROM lot_handovers WHERE deleted_at IS NULL${deptWhere(req)}`).get(...deptParam(req)).c;
-  const totalSignIns = db.prepare(`SELECT COUNT(*) as c FROM sign_in_sheets WHERE deleted_at IS NULL${deptWhere(req)}`).get(...deptParam(req)).c;
+  const totalMachines = db.prepare(`SELECT COUNT(*) as c FROM machines WHERE deleted_at IS NULL AND archived_at IS NULL${deptWhere(req)}`).get(...deptParam(req)).c;
+  const totalLtMachines = db.prepare(`SELECT COUNT(*) as c FROM lt_machines WHERE deleted_at IS NULL AND archived_at IS NULL${deptWhere(req)}`).get(...deptParam(req)).c;
+  const totalLots = db.prepare(`SELECT COUNT(*) as c FROM lot_handovers WHERE deleted_at IS NULL AND archived_at IS NULL${deptWhere(req)}`).get(...deptParam(req)).c;
+  const totalSignIns = db.prepare(`SELECT COUNT(*) as c FROM sign_in_sheets WHERE deleted_at IS NULL AND archived_at IS NULL${deptWhere(req)}`).get(...deptParam(req)).c;
 
   const machineStats = db.prepare(`
     SELECT status, COUNT(*) as count FROM machines
-    WHERE deleted_at IS NULL${deptWhere(req)} GROUP BY status
+    WHERE deleted_at IS NULL AND archived_at IS NULL${deptWhere(req)} GROUP BY status
   `).all(...deptParam(req));
 
   const recentLots = db.prepare(`
     SELECT id, lot_id, detail, updated_at FROM lot_handovers
-    WHERE deleted_at IS NULL${deptWhere(req)} ORDER BY updated_at DESC LIMIT 10
+    WHERE deleted_at IS NULL AND archived_at IS NULL${deptWhere(req)} ORDER BY updated_at DESC LIMIT 10
   `).all(...deptParam(req));
 
   res.json({ totalMachines, totalLtMachines, totalLots, totalSignIns, machineStats, recentLots });
@@ -1169,9 +1179,9 @@ function registerCrudRoutes(opts) {
   // 读取该表实际存在的列，写入前过滤，避免因数据库 schema 漂移（如缺少某列）导致 INSERT/UPDATE 对所有人全部失败
   const tableCols = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name));
 
-  // 列表
+  // 列表（排除已删除和已归档）
   app.get(basePath, authMiddleware, checkModulePermission(module, 'view'), (req, res) => {
-    const rows = db.prepare(`SELECT * FROM ${table} WHERE deleted_at IS NULL${deptWhere(req)} ORDER BY id DESC`).all(...deptParam(req));
+    const rows = db.prepare(`SELECT * FROM ${table} WHERE deleted_at IS NULL AND archived_at IS NULL${deptWhere(req)} ORDER BY id DESC`).all(...deptParam(req));
     res.json(rows);
   });
 
@@ -1235,7 +1245,7 @@ function registerCrudRoutes(opts) {
   app.delete(`${basePath}/:id`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (Number.isNaN(id)) return res.status(400).json({ error: '无效的记录ID' });
-    const info = db.prepare(`UPDATE ${table} SET deleted_at = datetime('now', 'localtime') WHERE id = ? AND deleted_at IS NULL${deptWhere(req)}`).run(id, ...deptParam(req));
+    const info = db.prepare(`UPDATE ${table} SET deleted_at = datetime('now', 'localtime'), archived_at = NULL WHERE id = ? AND deleted_at IS NULL${deptWhere(req)}`).run(id, ...deptParam(req));
     if (info.changes === 0) return res.status(404).json({ error: '记录不存在或无权操作' });
     res.json({ success: true });
   });
@@ -1267,8 +1277,33 @@ function registerCrudRoutes(opts) {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) return res.json({ changes: 0 });
     const placeholders = ids.map(() => '?').join(', ');
-    const info = db.prepare(`UPDATE ${table} SET deleted_at = datetime('now', 'localtime') WHERE id IN (${placeholders}) AND deleted_at IS NULL${deptWhere(req)}`).run(...ids, ...deptParam(req));
+    const info = db.prepare(`UPDATE ${table} SET deleted_at = datetime('now', 'localtime'), archived_at = NULL WHERE id IN (${placeholders}) AND deleted_at IS NULL${deptWhere(req)}`).run(...ids, ...deptParam(req));
     res.json({ changes: info.changes });
+  });
+
+  // ===== 归档功能（临时隐藏记录，不进回收站） =====
+
+  // 单个/批量归档
+  app.post(`${basePath}/batch-archive`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.json({ changes: 0 });
+    const placeholders = ids.map(() => '?').join(', ');
+    const info = db.prepare(`UPDATE ${table} SET archived_at = datetime('now', 'localtime'), updated_at = datetime('now', 'localtime') WHERE id IN (${placeholders}) AND deleted_at IS NULL AND archived_at IS NULL${deptWhere(req)}`).run(...ids, ...deptParam(req));
+    res.json({ changes: info.changes });
+  });
+
+  // 撤销归档
+  app.patch(`${basePath}/:id/unarchive`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
+    const id = parseInt(req.params.id);
+    const info = db.prepare(`UPDATE ${table} SET archived_at = NULL, updated_at = datetime('now', 'localtime') WHERE id = ? AND deleted_at IS NULL${deptWhere(req)}`).run(id, ...deptParam(req));
+    if (info.changes === 0) return res.status(404).json({ error: '记录不存在或无权操作' });
+    res.json({ success: true });
+  });
+
+  // 归档列表
+  app.get(`${basePath}/archived`, authMiddleware, checkModulePermission(module, 'view'), (req, res) => {
+    const rows = db.prepare(`SELECT * FROM ${table} WHERE deleted_at IS NULL AND archived_at IS NOT NULL${deptWhere(req)} ORDER BY archived_at DESC`).all(...deptParam(req));
+    res.json(rows);
   });
 
   // 批量恢复
