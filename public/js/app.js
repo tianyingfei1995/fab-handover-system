@@ -2195,9 +2195,7 @@ function filteredMachineIds() {
   const search = document.getElementById('machineSearch').value.toLowerCase();
   const statusFilter = document.getElementById('machineStatusFilter').value;
   const processStatusFilter = document.getElementById('machineProcessStatusFilter') ? document.getElementById('machineProcessStatusFilter').value : '';
-  const shiftFilter = document.getElementById('machineShiftFilter') ? document.getElementById('machineShiftFilter').value : '';
-  const shiftDateEl = document.getElementById('machineShiftDateFilter');
-  const shiftDateFilter = shiftDateEl ? shiftDateEl.value : '';
+  const shiftSel = msSelected('machineShiftMs');
   let filtered = machines.filter(m => {
     const matchSearch = !search ||
       (m.machine_name || '').toLowerCase().includes(search) ||
@@ -2206,9 +2204,8 @@ function filteredMachineIds() {
       (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
-    const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
-    const matchShiftDate = !shiftDateFilter || (m.shift || '').startsWith(shiftDateFilter);
-    return matchSearch && matchStatus && matchProcessStatus && matchShift && matchShiftDate;
+    const matchShift = shiftSel.size === 0 || shiftSel.has((m.shift || '').trim());
+    return matchSearch && matchStatus && matchProcessStatus && matchShift;
   });
   _cachedFilteredMachineIds = applyMachineSort(filtered).map(m => m.id);
   return _cachedFilteredMachineIds;
@@ -2315,13 +2312,10 @@ function renderMachineTable() {
   const searchEl = document.getElementById('machineSearch');
   const statusEl = document.getElementById('machineStatusFilter');
   const processEl = document.getElementById('machineProcessStatusFilter');
-  const shiftEl = document.getElementById('machineShiftFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const statusFilter = statusEl ? statusEl.value : '';
   const processStatusFilter = processEl ? processEl.value : '';
-  const shiftFilter = shiftEl ? shiftEl.value : '';
-  const shiftDateEl = document.getElementById('machineShiftDateFilter');
-  const shiftDateFilter = shiftDateEl ? shiftDateEl.value : '';
+  const shiftSel = msSelected('machineShiftMs');
 
   let filtered = machines.filter(m => {
     const matchSearch = !search ||
@@ -2331,9 +2325,8 @@ function renderMachineTable() {
       (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
-    const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
-    const matchShiftDate = !shiftDateFilter || (m.shift || '').startsWith(shiftDateFilter);
-    return matchSearch && matchStatus && matchProcessStatus && matchShift && matchShiftDate;
+    const matchShift = shiftSel.size === 0 || shiftSel.has((m.shift || '').trim());
+    return matchSearch && matchStatus && matchProcessStatus && matchShift;
   });
 
   // 应用排序
@@ -3007,13 +3000,10 @@ function filteredLtMachineIds() {
   const searchEl = document.getElementById('ltMachineSearch');
   const statusEl = document.getElementById('ltMachineStatusFilter');
   const processEl = document.getElementById('ltMachineProcessStatusFilter');
-  const shiftEl = document.getElementById('ltMachineShiftFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const statusFilter = statusEl ? statusEl.value : '';
   const processStatusFilter = processEl ? processEl.value : '';
-  const shiftFilter = shiftEl ? shiftEl.value : '';
-  const shiftDateEl = document.getElementById('ltMachineShiftDateFilter');
-  const shiftDateFilter = shiftDateEl ? shiftDateEl.value : '';
+  const shiftSel = msSelected('ltMachineShiftMs');
   let filtered = ltMachines.filter(m => {
     const matchSearch = !search ||
       (m.machine_name || '').toLowerCase().includes(search) ||
@@ -3022,9 +3012,8 @@ function filteredLtMachineIds() {
       (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
-    const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
-    const matchShiftDate = !shiftDateFilter || (m.shift || '').startsWith(shiftDateFilter);
-    return matchSearch && matchStatus && matchProcessStatus && matchShift && matchShiftDate;
+    const matchShift = shiftSel.size === 0 || shiftSel.has((m.shift || '').trim());
+    return matchSearch && matchStatus && matchProcessStatus && matchShift;
   });
   _cachedLtFilteredMachineIds = applyLtMachineSort(filtered).map(m => m.id);
   return _cachedLtFilteredMachineIds;
@@ -3112,13 +3101,10 @@ function renderLtMachineTable() {
   const searchEl = document.getElementById('ltMachineSearch');
   const statusEl = document.getElementById('ltMachineStatusFilter');
   const processEl = document.getElementById('ltMachineProcessStatusFilter');
-  const shiftEl = document.getElementById('ltMachineShiftFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const statusFilter = statusEl ? statusEl.value : '';
   const processStatusFilter = processEl ? processEl.value : '';
-  const shiftFilter = shiftEl ? shiftEl.value : '';
-  const ltShiftDateEl = document.getElementById('ltMachineShiftDateFilter');
-  const ltShiftDateFilter = ltShiftDateEl ? ltShiftDateEl.value : '';
+  const ltShiftSel = msSelected('ltMachineShiftMs');
 
   let filtered = ltMachines.filter(m => {
     const matchSearch = !search ||
@@ -3128,9 +3114,8 @@ function renderLtMachineTable() {
       (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
     const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
-    const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
-    const matchShiftDate = !ltShiftDateFilter || (m.shift || '').startsWith(ltShiftDateFilter);
-    return matchSearch && matchStatus && matchProcessStatus && matchShift && matchShiftDate;
+    const matchShift = ltShiftSel.size === 0 || ltShiftSel.has((m.shift || '').trim());
+    return matchSearch && matchStatus && matchProcessStatus && matchShift;
   });
 
   filtered = applyLtMachineSort(filtered);
@@ -3848,13 +3833,10 @@ function renderSignInTable() {
   const tbody = document.getElementById('signInTableBody');
   if (!tbody) return;
   const searchEl = document.getElementById('signInSearch');
-  const shiftEl = document.getElementById('signInShiftFilter');
   const hostEl = document.getElementById('signInHostFilter');
-  const dateEl = document.getElementById('signInDateFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
-  const shiftFilter = shiftEl ? shiftEl.value : '';
   const hostFilter = hostEl ? hostEl.value : '';
-  const dateFilter = dateEl ? dateEl.value : '';
+  const shiftSel = msSelected('signInShiftMs');
 
   let filtered = signInSheets.filter(s => {
     let attendeesText = '';
@@ -3864,10 +3846,9 @@ function renderSignInTable() {
         (s.location || '').toLowerCase().includes(search) ||
         (s.host || '').toLowerCase().includes(search) ||
         attendeesText.toLowerCase().includes(search);
-      const matchShift = !shiftFilter || (s.shift_time || '').includes(shiftFilter);
+      const matchShift = shiftSel.size === 0 || shiftSel.has((s.shift_time || '').trim());
       const matchHost = !hostFilter || (s.host || '') === hostFilter;
-      const matchDate = !dateFilter || (s.shift_time || '').startsWith(dateFilter);
-      return matchSearch && matchShift && matchHost && matchDate;
+      return matchSearch && matchShift && matchHost;
     });
 
   filtered = applySignInSort(filtered);
@@ -3902,12 +3883,9 @@ function renderSignInTable() {
 function toggleSignInSelectAll(checked) {
   if (checked) {
     const search = (document.getElementById('signInSearch').value || '').toLowerCase();
-    const shiftEl = document.getElementById('signInShiftFilter');
     const hostEl = document.getElementById('signInHostFilter');
-    const dateEl = document.getElementById('signInDateFilter');
-    const shiftFilter = shiftEl ? shiftEl.value : '';
     const hostFilter = hostEl ? hostEl.value : '';
-    const dateFilter = dateEl ? dateEl.value : '';
+    const shiftSel = msSelected('signInShiftMs');
     signInSheets.filter(s => {
       let attendeesText = '';
       try { attendeesText = typeof s.attendees === 'string' ? s.attendees : ''; } catch(e) {}
@@ -3916,10 +3894,9 @@ function toggleSignInSelectAll(checked) {
         (s.location || '').toLowerCase().includes(search) ||
         (s.host || '').toLowerCase().includes(search) ||
         attendeesText.toLowerCase().includes(search);
-      const matchShift = !shiftFilter || (s.shift_time || '').includes(shiftFilter);
+      const matchShift = shiftSel.size === 0 || shiftSel.has((s.shift_time || '').trim());
       const matchHost = !hostFilter || (s.host || '') === hostFilter;
-      const matchDate = !dateFilter || (s.shift_time || '').startsWith(dateFilter);
-      return matchSearch && matchShift && matchHost && matchDate;
+      return matchSearch && matchShift && matchHost;
     }).forEach(s => selectedSignInIds.add(s.id));
   } else {
     selectedSignInIds.clear();
@@ -5003,9 +4980,8 @@ const trashConfig = {
       selects: [
         { key: 'status', allLabel: '全部状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
         { key: 'process_status', allLabel: '全部处理状态', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
-        { key: 'shift', allLabel: '全部班次', options: [['白班','白班'],['夜班','夜班']], mode: 'includes' }
-      ],
-      dateKey: 'shift'
+        { key: 'shift', type: 'multi', allLabel: '全部班次' }
+      ]
     }
   },
   'daily-handover': {
@@ -5035,9 +5011,8 @@ const trashConfig = {
       selects: [
         { key: 'status', allLabel: '全部状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
         { key: 'process_status', allLabel: '全部处理状态', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
-        { key: 'shift', allLabel: '全部班次', options: [['白班','白班'],['夜班','夜班']], mode: 'includes' }
-      ],
-      dateKey: 'shift'
+        { key: 'shift', type: 'multi', allLabel: '全部班次' }
+      ]
     }
   },
   'lot-handover': {
@@ -5068,10 +5043,9 @@ const trashConfig = {
     archiveFilters: {
       search: { fields: ['shift_time', 'location', 'host', 'attendees'] },
       selects: [
-        { key: 'shift_time', label: '全部班次', allLabel: '全部班次', options: [['白班','白班'],['夜班','夜班']], mode: 'includes' },
+        { key: 'shift_time', type: 'multi', allLabel: '全部班次' },
         { key: 'host', allLabel: '全部主持人', dynamic: true }
-      ],
-      dateKey: 'shift_time'
+      ]
     }
   },
   'duty-issue': {
@@ -5173,6 +5147,85 @@ async function permanentlyDelete(type, id) {
   } catch (e) {
     showToast('删除失败', 'error');
   }
+}
+
+// ===== 通用多选下拉（班次：日期+班次 组合选项，带复选框） =====
+const _msState = {}; // id -> { open, selected:Set, getValues, onChange }
+
+function initMultiSelect(id, getValues, onChange, placeholder) {
+  const host = document.getElementById(id);
+  if (!host) return;
+  _msState[id] = { open: false, selected: new Set(), getValues, onChange, placeholder: placeholder || '全部班次' };
+  host.classList.add('ms-dropdown');
+  if (!host.dataset.msBound) {
+    host.dataset.msBound = '1';
+    document.addEventListener('click', e => {
+      if (!host.contains(e.target) && _msState[id] && _msState[id].open) {
+        _msState[id].open = false;
+        renderMultiSelect(id);
+      }
+    });
+  }
+  renderMultiSelect(id);
+}
+
+function toggleMsPanel(id) {
+  const st = _msState[id];
+  if (!st) return;
+  st.open = !st.open;
+  renderMultiSelect(id);
+}
+
+function renderMultiSelect(id) {
+  const st = _msState[id];
+  const host = document.getElementById(id);
+  if (!st || !host) return;
+  // 每次渲染重新取值，保证面板打开时选项与数据同步（按日期倒序）
+  const vals = [...new Set((st.getValues() || []).map(v => (v || '').toString().trim()).filter(Boolean))].sort().reverse();
+  const btnLabel = st.selected.size === 0 ? st.placeholder
+    : (st.selected.size === 1 ? [...st.selected][0] : `已选 ${st.selected.size} 项`);
+  host.innerHTML = `
+    <button type="button" class="filter-select ms-toggle" onclick="event.stopPropagation(); toggleMsPanel('${id}')" title="按日期+班次筛选（可多选）">${escapeHtml(btnLabel)} <span class="ms-caret">▾</span></button>
+    <div class="ms-panel"${st.open ? ' style="display:block"' : ''}>
+      <div class="ms-actions">
+        <a onclick="msSelectAll('${id}', true)">全选</a>
+        <a onclick="msSelectAll('${id}', false)">清空</a>
+      </div>
+      <div class="ms-list">${vals.map(v => `
+        <label class="ms-option">
+          <input type="checkbox" value="${escapeAttr(v)}" ${st.selected.has(v) ? 'checked' : ''} onchange="msToggle('${id}', this.value, this.checked)">
+          <span>${escapeHtml(v)}</span>
+        </label>`).join('') || '<div class="ms-empty">暂无班次数据</div>'}
+      </div>
+    </div>`;
+}
+
+function msToggle(id, value, checked) {
+  const st = _msState[id];
+  if (!st) return;
+  if (checked) st.selected.add(value); else st.selected.delete(value);
+  renderMultiSelect(id);
+  if (st.onChange) st.onChange();
+}
+
+function msSelectAll(id, all) {
+  const st = _msState[id];
+  if (!st) return;
+  if (all) (st.getValues() || []).forEach(v => { if (v) st.selected.add(v.toString().trim()); });
+  else st.selected.clear();
+  renderMultiSelect(id);
+  if (st.onChange) st.onChange();
+}
+
+function msSelected(id) {
+  return _msState[id] ? _msState[id].selected : new Set();
+}
+
+function msClear(id) {
+  const st = _msState[id];
+  if (!st) return;
+  st.selected.clear();
+  renderMultiSelect(id);
 }
 
 // ===== 归档功能（临时隐藏记录，可在归档管理中撤销归档） =====
@@ -5294,6 +5347,9 @@ function renderArchiveModalContent() {
   let filterHtml = '';
   if (af.search || af.selects || af.dateKey) {
     const selectsHtml = (af.selects || []).map(sel => {
+      if (sel.type === 'multi') {
+        return `<div class="ms-dropdown" id="archiveMs_${sel.key}"></div>`;
+      }
       let opts;
       if (sel.dynamic) {
         const vals = [...new Set(_archiveItems.map(it => (it[sel.key] || '').toString().trim()).filter(Boolean))].sort();
@@ -5323,6 +5379,11 @@ function renderArchiveModalContent() {
   }
 
   body.innerHTML = `${filterHtml}<div id="archiveListContainer"></div>`;
+  // 初始化班次多选下拉（选项来自已归档记录）
+  (af.selects || []).filter(sel => sel.type === 'multi').forEach(sel => {
+    const msId = `archiveMs_${sel.key}`;
+    initMultiSelect(msId, () => _archiveItems.map(it => it[sel.key]), renderArchiveList, sel.allLabel);
+  });
   renderArchiveList();
 }
 
@@ -5335,11 +5396,20 @@ function filterArchiveItems() {
   const search = (body.querySelector('.archive-search-input')?.value || '').toLowerCase();
   const selects = [...body.querySelectorAll('.archive-filter-select')];
   const dateVal = body.querySelector('.archive-filter-date')?.value || '';
+  // 班次多选集合（日期+班次组合）
+  const multiSets = {};
+  (af.selects || []).filter(s => s.type === 'multi').forEach(s => {
+    multiSets[s.key] = msSelected(`archiveMs_${s.key}`);
+  });
 
   return _archiveItems.filter(item => {
     if (search && af.search) {
       const hit = af.search.fields.some(f => _archiveFieldText(item, f).includes(search));
       if (!hit) return false;
+    }
+    for (const key in multiSets) {
+      const set = multiSets[key];
+      if (set.size && !set.has((item[key] || '').toString().trim())) return false;
     }
     for (const sel of selects) {
       const v = sel.value;
@@ -5419,6 +5489,7 @@ function resetArchiveFilters() {
   body.querySelectorAll('.archive-filter-select').forEach(s => { s.value = ''; });
   const date = body.querySelector('.archive-filter-date');
   if (date) date.value = '';
+  body.querySelectorAll('.ms-dropdown').forEach(d => { if (d.id) msClear(d.id); });
   renderArchiveList();
 }
 
@@ -5509,19 +5580,18 @@ document.getElementById('arHandoverStatusFilter').addEventListener('change', () 
 
 // 新增筛选器事件监听
 document.getElementById('machineProcessStatusFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
-document.getElementById('machineShiftFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
-document.getElementById('machineShiftDateFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
 document.getElementById('ltMachineProcessStatusFilter').addEventListener('change', () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); });
-document.getElementById('ltMachineShiftFilter').addEventListener('change', () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); });
-document.getElementById('ltMachineShiftDateFilter').addEventListener('change', () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); });
 document.getElementById('lotHandoverStatusFilter').addEventListener('change', renderLotHandoverTable);
-document.getElementById('signInShiftFilter').addEventListener('change', renderSignInTable);
+
+// 班次多选下拉（日期+班次组合选项，带复选框）
+initMultiSelect('machineShiftMs', () => machines.map(m => m.shift), () => { _cachedFilteredMachineIds = null; renderMachineTable(); }, '全部班次');
+initMultiSelect('ltMachineShiftMs', () => ltMachines.map(m => m.shift), () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); }, '全部班次');
+initMultiSelect('signInShiftMs', () => signInSheets.map(s => s.shift_time), renderSignInTable, '全部班次');
 
 // 新增筛选器事件监听 — 动态下拉框和日期筛选
 document.getElementById('lotHandoverCreatedByFilter').addEventListener('change', renderLotHandoverTable);
 document.getElementById('lotHandoverDateFilter').addEventListener('change', renderLotHandoverTable);
 document.getElementById('signInHostFilter').addEventListener('change', renderSignInTable);
-document.getElementById('signInDateFilter').addEventListener('change', renderSignInTable);
 document.getElementById('dutyIssueConfirmFilter').addEventListener('change', renderDutyIssueTable);
 document.getElementById('dutyIssueDateFilter').addEventListener('change', renderDutyIssueTable);
 document.getElementById('arHandoverOwnerFilter').addEventListener('change', () => { _cachedArFilteredIds = null; renderArHandoverTable(); });
@@ -5553,8 +5623,7 @@ function resetMachineFilters() {
   document.getElementById('machineSearch').value = '';
   document.getElementById('machineStatusFilter').value = '';
   document.getElementById('machineProcessStatusFilter').value = '';
-  document.getElementById('machineShiftFilter').value = '';
-  document.getElementById('machineShiftDateFilter').value = '';
+  msClear('machineShiftMs');
   _cachedFilteredMachineIds = null;
   renderMachineTable();
 }
@@ -5562,8 +5631,7 @@ function resetLtMachineFilters() {
   document.getElementById('ltMachineSearch').value = '';
   document.getElementById('ltMachineStatusFilter').value = '';
   document.getElementById('ltMachineProcessStatusFilter').value = '';
-  document.getElementById('ltMachineShiftFilter').value = '';
-  document.getElementById('ltMachineShiftDateFilter').value = '';
+  msClear('ltMachineShiftMs');
   _cachedLtFilteredMachineIds = null;
   renderLtMachineTable();
 }
@@ -5579,12 +5647,9 @@ function resetLotHandoverFilters() {
 }
 function resetSignInFilters() {
   document.getElementById('signInSearch').value = '';
-  const sf = document.getElementById('signInShiftFilter');
-  if (sf) sf.value = '';
+  msClear('signInShiftMs');
   const hf = document.getElementById('signInHostFilter');
   if (hf) hf.value = '';
-  const df = document.getElementById('signInDateFilter');
-  if (df) df.value = '';
   renderSignInTable();
 }
 function resetDutyIssueFilters() {

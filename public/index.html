@@ -287,12 +287,7 @@
             <option value="resolved">已解决</option>
             <option value="closed">已关闭</option>
           </select>
-          <input type="date" id="machineShiftDateFilter" class="filter-date" title="按交接日期筛选">
-          <select id="machineShiftFilter" class="filter-select">
-            <option value="">全部班次</option>
-            <option value="白班">白班</option>
-            <option value="夜班">夜班</option>
-          </select>
+          <div id="machineShiftMs"></div>
           <button class="btn btn-ghost btn-sm btn-reset" onclick="resetMachineFilters()" title="重置筛选条件">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             重置
@@ -387,12 +382,7 @@
             <option value="resolved">已解决</option>
             <option value="closed">已关闭</option>
           </select>
-          <input type="date" id="ltMachineShiftDateFilter" class="filter-date" title="按交接日期筛选">
-          <select id="ltMachineShiftFilter" class="filter-select">
-            <option value="">全部班次</option>
-            <option value="白班">白班</option>
-            <option value="夜班">夜班</option>
-          </select>
+          <div id="ltMachineShiftMs"></div>
           <button class="btn btn-ghost btn-sm btn-reset" onclick="resetLtMachineFilters()" title="重置筛选条件">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             重置
@@ -605,15 +595,10 @@
           <input type="text" id="signInSearch" placeholder="搜索时间/地点/主持/参会人...">
         </div>
         <div class="filter-group">
-          <select id="signInShiftFilter" class="filter-select">
-            <option value="">全部班次</option>
-            <option value="白班">白班</option>
-            <option value="夜班">夜班</option>
-          </select>
+          <div id="signInShiftMs"></div>
           <select id="signInHostFilter" class="filter-select">
             <option value="">全部主持人</option>
           </select>
-          <input type="date" id="signInDateFilter" class="filter-date" title="按班次日期筛选">
           <button class="btn btn-ghost btn-sm btn-reset" onclick="resetSignInFilters()" title="重置筛选条件">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             重置
