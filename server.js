@@ -1640,6 +1640,10 @@ const EXPORT_MODULES = [
 const EXPORT_IMG_BOX = { w: 150, h: 100 };
 const EXPORT_IMG_COL_WIDTH = 22;   // 图片列宽（字符）
 const EXPORT_IMG_ROW_HEIGHT = 78;  // 含图片行高（pt）
+// 图片列/行的 EMU 尺寸（绕过 ExcelJS 小数锚点的错误换算：列宽字符×10000 ≠ 真实EMU）
+const EMU_PER_PX = 9525;
+const EXPORT_IMG_COL_EMU = Math.round((Math.round(EXPORT_IMG_COL_WIDTH * 7 + 5) - 12)) * EMU_PER_PX; // 列宽px减边距
+const EXPORT_IMG_ROW_EMU = Math.round(EXPORT_IMG_ROW_HEIGHT * 12700) - 8 * EMU_PER_PX;               // 行高EMU减边距
 
 app.get('/api/export/excel', authMiddleware, async (req, res) => {
   try {
@@ -1672,10 +1676,11 @@ app.get('/api/export/excel', authMiddleware, async (req, res) => {
           if (!img) return;
           const imgId = wb.addImage({ base64: img.base64, extension: img.ext });
           const colIdx = mod.columns.length + pi; // 0 基列号
-          // 双锚点（twoCellAnchor）+ 单元格内边距，兼容 WPS/移动端等查看器
+          // 原生 EMU 锚点（twoCellAnchor）：ExcelJS 的小数锚点会按「字符宽×10000」错误换算，
+          // 导致图片被压成 ~21px 细条；这里直接给 EMU 偏移，图片铺满图片列单元格
           ws.addImage(imgId, {
-            tl: { col: colIdx + 0.05, row: ri + 1.05 }, // 表头为第 0 行
-            br: { col: colIdx + 0.95, row: ri + 1.95 },
+            tl: { nativeCol: colIdx, nativeColOff: 6 * EMU_PER_PX, nativeRow: ri + 1, nativeRowOff: 4 * EMU_PER_PX },
+            br: { nativeCol: colIdx, nativeColOff: 6 * EMU_PER_PX + EXPORT_IMG_COL_EMU, nativeRow: ri + 1, nativeRowOff: 4 * EMU_PER_PX + EXPORT_IMG_ROW_EMU },
             editAs: 'oneCell'
           });
         });
