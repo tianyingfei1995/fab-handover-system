@@ -6531,7 +6531,10 @@ async function init() {
   const loggedIn = await checkSession();
   if (!loggedIn) return;
   await loadDepartments();
-  await Promise.all([loadMachines(), loadLtMachines(), loadDailyHandovers(), loadLotHandovers(), loadSignInEngineers(), loadSignInSheets(), loadDutyIssues(), loadArHandovers(), loadDashboard(), loadOwnerMembers()]);
+  // loadDashboard 的"高优先级提醒"依赖 dailyHandovers 数据，
+  // 因此先并行加载各业务数据，最后再加载仪表盘，避免首屏提醒为空
+  await Promise.all([loadMachines(), loadLtMachines(), loadDailyHandovers(), loadLotHandovers(), loadSignInEngineers(), loadSignInSheets(), loadDutyIssues(), loadArHandovers(), loadOwnerMembers()]);
+  await loadDashboard();
   // 数据加载完成后应用表格权限控制
   applyTableActionPermissions();
   // 管理员检查清理预告通知
