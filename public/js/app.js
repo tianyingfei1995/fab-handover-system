@@ -3844,7 +3844,7 @@ function renderSignInTable() {
   filtered = applySignInSort(filtered);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">暂无签到表数据，点击"新增签到表"添加</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">暂无签到表数据，点击"新增签到表"添加</td></tr>`;
     updateSignInBatchCount();
     return;
   }
@@ -3861,7 +3861,6 @@ function renderSignInTable() {
       <td>${escapeHtml(s.host || '-')}</td>
       <td>${count}</td>
       <td><div class="cell-expandable">${escapeHtml(summary)}</div></td>
-      <td>${(s.updated_at || '').substring(0, 16)}</td>
       <td onclick="event.stopPropagation()">
         ${actionButtonsHtml('sign-in', s.id, 'editSignInSheet', 'deleteSignInSheet')}
       </td>
