@@ -2498,6 +2498,10 @@ button.dh-chip:focus-visible { outline: 2px solid var(--accent-blue); outline-of
 .dh-chip-progress.dh-chip-active { border-color: var(--accent-blue); background: color-mix(in srgb, var(--accent-blue) 20%, var(--bg-secondary)); }
 .dh-chip-resolved.dh-chip-active { border-color: var(--accent-green); background: color-mix(in srgb, var(--accent-green) 20%, var(--bg-secondary)); }
 .dh-chip-closed.dh-chip-active   { opacity: 1; border-color: var(--text-faint); background: var(--bg-tertiary); }
+.dh-chip-high.dh-chip-active {
+  border-color: var(--accent-red);
+  background: color-mix(in srgb, var(--accent-red) 16%, var(--bg-secondary));
+}
 .dh-chip b {
   font-size: 14px;
   font-weight: 700;

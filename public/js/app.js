@@ -4770,6 +4770,7 @@ async function loadDailyHandovers() {
 let dhStatusChipFilter = '';
 
 function filterDailyHandoverByStatus(list, status) {
+  if (status === 'high_open') return list.filter(h => h.priority === 'high' && h.status !== 'closed');
   return status ? list.filter(h => h.status === status) : list;
 }
 
@@ -4867,7 +4868,11 @@ function renderDhStatBar(baseFiltered) {
     const active = dhStatusChipFilter === c.key;
     return `<button type="button" class="dh-chip${c.cls ? ' ' + c.cls : ''}${active ? ' dh-chip-active' : ''}" onclick="toggleDhStatusChip('${c.key}')" title="${active ? '点击取消筛选' : '点击筛选'}">${c.label}<b>${c.n}</b></button>`;
   }).join('');
-  if (highOpen > 0) html += `<span class="dh-chip dh-chip-high">高优先级未关闭<b>${highOpen}</b></span>`;
+  // 高优先级未关闭：同样可点击筛选（优先级=高 且 未关闭）
+  const highOpenActive = dhStatusChipFilter === 'high_open';
+  if (highOpen || highOpenActive) {
+    html += `<button type="button" class="dh-chip dh-chip-high${highOpenActive ? ' dh-chip-active' : ''}" onclick="toggleDhStatusChip('high_open')" title="${highOpenActive ? '点击取消筛选' : '点击筛选：优先级为高且未关闭'}">高优先级未关闭<b>${highOpen}</b></button>`;
+  }
   bar.innerHTML = html;
 }
 
