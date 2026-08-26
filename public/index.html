@@ -331,7 +331,7 @@
             <option value="resolved">批量标记为：已解决</option>
             <option value="closed">批量标记为：已关闭</option>
             <option value="archive" style="color: #1e50e0; font-weight: 600;">将选中记录移入归档（临时隐藏）</option>
-            <option value="delete" style="color: #ef4444; font-weight: 600;">删除选中记录（可在回收站恢复）</option>
+            <option value="delete" style="color: #ef4444; font-weight: 600;">永久删除选中记录（含图片/附件，不可恢复）</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="batchUpdateProcessStatus()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
@@ -426,7 +426,7 @@
             <option value="resolved">批量标记为：已解决</option>
             <option value="closed">批量标记为：已关闭</option>
             <option value="archive" style="color: #1e50e0; font-weight: 600;">将选中记录移入归档（临时隐藏）</option>
-            <option value="delete" style="color: #ef4444; font-weight: 600;">删除选中记录（可在回收站恢复）</option>
+            <option value="delete" style="color: #ef4444; font-weight: 600;">永久删除选中记录（含图片/附件，不可恢复）</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="batchUpdateLtProcessStatus()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
@@ -561,7 +561,7 @@
         </div>
         <div class="batch-bar-right">
           <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('lot-handover')" title="移入归档（临时隐藏，可撤销）">移入归档</button>
-          <button class="btn btn-danger btn-sm" onclick="batchDeleteLotHandovers()">
+          <button class="btn btn-danger btn-sm" onclick="batchDeleteLotHandovers()" title="永久删除（含图片/附件，不可恢复）">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
           </button>
@@ -632,7 +632,7 @@
         </div>
         <div class="batch-bar-right">
           <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('sign-in')" title="移入归档（临时隐藏，可撤销）">移入归档</button>
-          <button class="btn btn-danger btn-sm" onclick="batchDeleteSignInSheets()">
+          <button class="btn btn-danger btn-sm" onclick="batchDeleteSignInSheets()" title="永久删除（含图片/附件，不可恢复）">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
           </button>
@@ -703,7 +703,7 @@
         </div>
         <div class="batch-bar-right">
           <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('duty-issue')" title="移入归档（临时隐藏，可撤销）">移入归档</button>
-          <button class="btn btn-danger btn-sm" onclick="batchDeleteDutyIssues()">
+          <button class="btn btn-danger btn-sm" onclick="batchDeleteDutyIssues()" title="永久删除（含图片/附件，不可恢复）">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
           </button>
@@ -778,7 +778,7 @@
         </div>
         <div class="batch-bar-right">
           <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('ar-handover')" title="移入归档（临时隐藏，可撤销）">移入归档</button>
-          <button class="btn btn-danger btn-sm" onclick="batchDeleteArHandovers()">
+          <button class="btn btn-danger btn-sm" onclick="batchDeleteArHandovers()" title="永久删除（含图片/附件，不可恢复）">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             删除选中记录
           </button>
@@ -1929,7 +1929,7 @@ F："></div>
         <button class="modal-close" onclick="closeModal('confirmModal')">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="confirm-text">确定要删除这条记录吗？此操作不可撤销。</p>
+        <p class="confirm-text">确定要永久删除这条记录吗？其关联的图片和附件将一并删除，无法恢复！</p>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('confirmModal')">取消</button>
@@ -2114,7 +2114,7 @@ F："></div>
               ⚠️ 当前磁盘剩余空间：<strong id="cleanupNoticeDiskAdmin" style="color:#dc2626;"></strong>，低于预警阈值 10GB
             </div>
             <div style="font-size:13px;color:#78350f;line-height:1.6;">
-              为避免磁盘满影响系统正常运行，建议及时清理<strong>已删除记录对应的无用图片文件</strong>。这些图片关联的记录已从回收站删除满半年，清理后<strong>无法恢复</strong>。
+              为避免磁盘满影响系统正常运行，建议及时清理<strong>不再被任何记录引用的孤儿文件（图片/附件）</strong>。正常记录与归档数据的文件不会被清理，孤儿文件清理后<strong>无法恢复</strong>。
             </div>
           </div>
           <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
@@ -2122,7 +2122,7 @@ F："></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;color:#15803d;">
               <div>扫描文件总数：<span id="cleanupNoticeScannedAdmin" style="font-weight:600;"></span> 个</div>
               <div>待清理文件数：<span id="cleanupNoticeOrphanAdmin" style="font-weight:600;color:#dc2626;"></span> 个</div>
-              <div>过期软删图片：<span id="cleanupNoticeExpiredAdmin" style="font-weight:600;"></span> 个</div>
+              <div>遗留软删文件：<span id="cleanupNoticeExpiredAdmin" style="font-weight:600;"></span> 个</div>
               <div>无主孤儿图片：<span id="cleanupNoticeTrueOrphanAdmin" style="font-weight:600;"></span> 个</div>
               <div style="grid-column:span 2;">预计释放空间：<span id="cleanupNoticeSizeAdmin" style="font-weight:600;"></span></div>
             </div>
@@ -2138,13 +2138,13 @@ F："></div>
               🚨 紧急：磁盘剩余空间仅 <strong id="cleanupNoticeDiskDept" style="color:#dc2626;"></strong>，请尽快清理
             </div>
             <div style="font-size:13px;color:#7f1d1d;line-height:1.6;">
-              系统磁盘空间严重不足，将清理<strong>半年前已被删除记录对应的图片文件</strong>。以下为您所在部门（<strong id="cleanupNoticeDeptName" style="color:#dc2626;"></strong>）的待清理数据，删除后<strong>无法恢复</strong>。
+              系统磁盘空间不足，建议清理<strong>本部门不再被任何记录引用的孤儿文件</strong>（正常记录与归档数据的文件不受影响）。以下为您所在部门（<strong id="cleanupNoticeDeptName" style="color:#dc2626;"></strong>）的待清理数据，删除后<strong>无法恢复</strong>。
             </div>
           </div>
           <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
             <div style="font-size:13px;color:#9a3412;margin-bottom:6px;font-weight:600;">📋 您需要确认</div>
             <div style="font-size:13px;color:#7c2d12;line-height:1.6;">
-              您部门是否有半年前删除的重要数据需要恢复？如有，请尽快从回收站恢复，或联系系统管理员协助。恢复后该图片将不再被清理。
+              即将清理的是本部门不再被任何记录引用的孤儿文件（含超过 30 天的历史孤儿）。归档数据的文件不受影响；如有重要数据请先从归档中恢复为正常记录。
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;background:#f9fafb;border-radius:8px;padding:10px 14px;">

@@ -322,33 +322,6 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// 带撤销按钮的 Toast
-function showToastWithUndo(msg, undoCallback, type = 'success') {
-  const container = document.getElementById('toastContainer');
-  const toast = document.createElement('div');
-  toast.className = `toast toast-undo ${type}`;
-  toast.innerHTML = `<span class="toast-msg">${escapeHtml(msg)}</span>`;
-  const undoBtn = document.createElement('button');
-  undoBtn.className = 'toast-undo-btn';
-  undoBtn.textContent = '撤销';
-  toast.appendChild(undoBtn);
-  container.appendChild(toast);
-  let restored = false;
-  undoBtn.addEventListener('click', () => {
-    restored = true;
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
-    if (undoCallback) undoCallback();
-  });
-  // 5秒后自动消失
-  setTimeout(() => {
-    if (!restored) {
-      toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 300);
-    }
-  }, 5000);
-}
-
 function openModal(id) { document.getElementById(id).classList.add('active'); document.body.classList.add('modal-open'); }
 function closeModal(id) {
   const modal = document.getElementById(id);
@@ -2532,9 +2505,9 @@ async function batchUpdateProcessStatus() {
     return;
   }
 
-  // 删除选中记录（软删除，可撤销）
+  // 删除选中记录（硬删除：记录与图片/附件一并永久删除）
   if (newStatus === 'delete') {
-    if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？`)) return;
+    if (!confirm(`确定要永久删除选中的 ${ids.length} 条记录吗？其图片/附件将一并删除，无法恢复！`)) return;
     // 乐观更新：先从本地移除
     const removedItems = machines.filter(m => ids.includes(m.id)).map(m => ({ ...m }));
     machines = machines.filter(m => !ids.includes(m.id));
@@ -2544,17 +2517,7 @@ async function batchUpdateProcessStatus() {
     renderMachineTable();
     try {
       const result = await apiCall('POST', '/machines/batch-delete', { ids });
-      // 显示带撤销的 Toast
-      showToastWithUndo(`已删除 ${result.changes} 条记录，可撤销`, async () => {
-        try {
-          await apiCall('POST', '/machines/batch-restore', { ids });
-          showToast('已恢复删除的记录');
-          await loadMachines();
-        } catch (e) {
-          showToast('恢复失败', 'error');
-          await loadMachines();
-        }
-      });
+      showToast(`已永久删除 ${result.changes} 条记录（含图片/附件）`);
     } catch (e) {
       // 失败回滚
       machines = [...machines, ...removedItems];
@@ -2959,7 +2922,7 @@ function clearArSelection() {
 
 async function batchDeleteArHandovers() {
   if (selectedArIds.size === 0) { showToast('请先选择要操作的记录', 'error'); return; }
-  if (!confirm(`确定要删除选中的 ${selectedArIds.size} 条记录吗？`)) return;
+  if (!confirm(`确定要永久删除选中的 ${selectedArIds.size} 条记录吗？其图片/附件将一并删除，无法恢复！`)) return;
   const ids = [...selectedArIds];
   const removedItems = arHandovers.filter(a => ids.includes(a.id)).map(a => ({ ...a }));
   arHandovers = arHandovers.filter(a => !ids.includes(a.id));
@@ -2968,12 +2931,7 @@ async function batchDeleteArHandovers() {
   renderArHandoverTable();
   try {
     await apiCall('POST', '/ar-handovers/batch-delete', { ids });
-    showToastWithUndo(`已删除 ${ids.length} 条记录，可撤销`, async () => {
-      try {
-        await apiCall('POST', '/ar-handovers/batch-restore', { ids });
-        await loadArHandovers();
-      } catch (e) { showToast('恢复失败', 'error'); await loadArHandovers(); }
-    });
+    showToast(`已永久删除 ${ids.length} 条记录（含图片/附件）`);
     setTimeout(() => loadArHandovers(), 100);
   } catch (e) {
     showToast('删除失败，正在恢复', 'error');
@@ -3334,7 +3292,7 @@ async function batchUpdateLtProcessStatus() {
   }
 
   if (newStatus === 'delete') {
-    if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？`)) return;
+    if (!confirm(`确定要永久删除选中的 ${ids.length} 条记录吗？其图片/附件将一并删除，无法恢复！`)) return;
     const removedItems = ltMachines.filter(m => ids.includes(m.id)).map(m => ({ ...m }));
     ltMachines = ltMachines.filter(m => !ids.includes(m.id));
     selectedLtMachineIds.clear();
@@ -3343,13 +3301,7 @@ async function batchUpdateLtProcessStatus() {
     renderLtMachineTable();
     try {
       const result = await apiCall('POST', '/long-term-machines/batch-delete', { ids });
-      showToastWithUndo(`已删除 ${result.changes} 条记录，可撤销`, async () => {
-        try {
-          await apiCall('POST', '/long-term-machines/batch-restore', { ids });
-          showToast('已恢复删除的记录');
-          await loadLtMachines();
-        } catch (e) { showToast('恢复失败', 'error'); await loadLtMachines(); }
-      });
+      showToast(`已永久删除 ${result.changes} 条记录（含图片/附件）`);
     } catch (e) {
       ltMachines = [...ltMachines, ...removedItems];
       renderLtMachineTable();
@@ -3824,7 +3776,7 @@ function clearLotHSelection() {
 async function batchDeleteLotHandovers() {
   const ids = Array.from(selectedLotHIds);
   if (ids.length === 0) { showToast('请先选择要删除的记录', 'error'); return; }
-  if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？`)) return;
+  if (!confirm(`确定要永久删除选中的 ${ids.length} 条记录吗？其图片/附件将一并删除，无法恢复！`)) return;
   // 乐观删除
   const removedItems = [];
   ids.forEach(id => {
@@ -3833,21 +3785,9 @@ async function batchDeleteLotHandovers() {
   });
   selectedLotHIds.clear();
   renderLotHandoverTable();
-  showToast(`已删除 ${ids.length} 条记录，可撤销`, 'success');
   try {
     await apiCall('POST', '/lot-handovers/batch-delete', { ids });
-    showToastWithUndo(`已删除 ${ids.length} 条记录，可撤销`, async () => {
-      try {
-        await apiCall('POST', '/lot-handovers/batch-restore', { ids });
-        removedItems.reverse().forEach(({ idx, item }) => lotHandovers.splice(idx, 0, item));
-        renderLotHandoverTable();
-        showToast('已恢复删除的记录');
-        loadLotHandovers();
-      } catch (e) {
-        showToast('恢复失败', 'error');
-        loadLotHandovers();
-      }
-    });
+    showToast(`已永久删除 ${ids.length} 条记录（含图片/附件）`);
   } catch (e) {
     // 回滚
     removedItems.reverse().forEach(({ idx, item }) => lotHandovers.splice(idx, 0, item));
@@ -4199,7 +4139,7 @@ function clearSignInSelection() {
 async function batchDeleteSignInSheets() {
   const ids = Array.from(selectedSignInIds);
   if (ids.length === 0) { showToast('请先选择要删除的记录', 'error'); return; }
-  if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？`)) return;
+  if (!confirm(`确定要永久删除选中的 ${ids.length} 条记录吗？其图片/附件将一并删除，无法恢复！`)) return;
   const removedItems = [];
   ids.forEach(id => {
     const idx = signInSheets.findIndex(s => s.id == id);
@@ -4207,21 +4147,9 @@ async function batchDeleteSignInSheets() {
   });
   selectedSignInIds.clear();
   renderSignInTable();
-  showToast(`已删除 ${ids.length} 条记录，可撤销`, 'success');
   try {
     await apiCall('POST', '/sign-in-sheets/batch-delete', { ids });
-    showToastWithUndo(`已删除 ${ids.length} 条记录，可撤销`, async () => {
-      try {
-        await apiCall('POST', '/sign-in-sheets/batch-restore', { ids });
-        removedItems.reverse().forEach(({ idx, item }) => signInSheets.splice(idx, 0, item));
-        renderSignInTable();
-        showToast('已恢复删除的记录');
-        loadSignInSheets();
-      } catch (e) {
-        showToast('恢复失败', 'error');
-        loadSignInSheets();
-      }
-    });
+    showToast(`已永久删除 ${ids.length} 条记录（含图片/附件）`);
   } catch (e) {
     removedItems.reverse().forEach(({ idx, item }) => signInSheets.splice(idx, 0, item));
     renderSignInTable();
@@ -4733,20 +4661,14 @@ function clearDiSelection() {
 async function batchDeleteDutyIssues() {
   const ids = Array.from(selectedDiIds);
   if (ids.length === 0) { showToast('请先选择要删除的记录', 'error'); return; }
-  if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？`)) return;
+  if (!confirm(`确定要永久删除选中的 ${ids.length} 条记录吗？其图片/附件将一并删除，无法恢复！`)) return;
   const removedItems = dutyIssues.filter(d => ids.includes(d.id)).map(d => ({ ...d }));
   dutyIssues = dutyIssues.filter(d => !ids.includes(d.id));
   selectedDiIds.clear();
   renderDutyIssueTable();
   try {
     const result = await apiCall('POST', '/duty-issues/batch-delete', { ids });
-    showToastWithUndo(`已删除 ${result.changes} 条记录，可撤销`, async () => {
-      try {
-        await apiCall('POST', '/duty-issues/batch-restore', { ids });
-        showToast('已恢复删除的记录');
-        await loadDutyIssues();
-      } catch (e) { showToast('恢复失败', 'error'); await loadDutyIssues(); }
-    });
+    showToast(`已永久删除 ${result.changes} 条记录（含图片/附件）`);
   } catch (e) {
     dutyIssues = [...dutyIssues, ...removedItems];
     renderDutyIssueTable();
@@ -5229,7 +5151,7 @@ async function deleteDailyHandover(id) {
   openModal('confirmModal');
 }
 
-// ===== 确认删除（软删除 + 撤销） =====
+// ===== 确认删除（硬删除：记录与图片/附件一并永久删除，不可恢复） =====
 document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
   if (!pendingDelete) return;
   const { type, id } = pendingDelete;
@@ -5266,45 +5188,11 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
   else if (type === 'duty-issue') { selectedDiIds.delete(id); renderDutyIssueTable(); }
   else if (type === 'ar-handover') { selectedArIds.delete(id); _cachedArFilteredIds = null; renderArHandoverTable(); }
 
-  // 后台同步服务器（软删除）
+  // 后台同步服务器（硬删除：记录与其图片/附件一并永久删除）
   try {
     await apiCall('DELETE', `/${path}/${id}`);
-    // 显示带撤销按钮的 Toast
     const typeLabel = { 'machine': '机台', 'daily-handover': '其他交接', 'lt-machine': '长期机台', 'lot-handover': 'LOT交接', 'sign-in': '签到表', 'duty-issue': '值班问题', 'ar-handover': 'AR交接' }[type];
-    showToastWithUndo(`${typeLabel}已删除，可撤销`, async () => {
-      try {
-        await apiCall('PATCH', `/${path}/${id}/restore`);
-        // 恢复到本地数据
-        if (removedItem) {
-          list.splice(Math.min(removedIdx, list.length), 0, removedItem);
-        }
-        if (type === 'machine') { _cachedFilteredMachineIds = null; renderMachineTable(); }
-        else if (type === 'daily-handover') renderDailyHandoverCards();
-        else if (type === 'lt-machine') { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); }
-        else if (type === 'lot-handover') renderLotHandoverTable();
-        else if (type === 'sign-in') renderSignInTable();
-        else if (type === 'duty-issue') renderDutyIssueTable();
-        else if (type === 'ar-handover') { _cachedArFilteredIds = null; renderArHandoverTable(); }
-        showToast('已恢复删除的记录');
-        // 静默刷新确保一致
-        if (type === 'machine') loadMachines();
-        else if (type === 'daily-handover') loadDailyHandovers();
-        else if (type === 'lt-machine') loadLtMachines();
-        else if (type === 'lot-handover') loadLotHandovers();
-        else if (type === 'sign-in') loadSignInSheets();
-        else if (type === 'duty-issue') loadDutyIssues();
-        else if (type === 'ar-handover') loadArHandovers();
-      } catch (e) {
-        showToast('恢复失败', 'error');
-        if (type === 'machine') loadMachines();
-        else if (type === 'daily-handover') loadDailyHandovers();
-        else if (type === 'lt-machine') loadLtMachines();
-        else if (type === 'lot-handover') loadLotHandovers();
-        else if (type === 'sign-in') loadSignInSheets();
-        else if (type === 'duty-issue') loadDutyIssues();
-        else if (type === 'ar-handover') loadArHandovers();
-      }
-    });
+    showToast(`${typeLabel}已永久删除（含图片/附件）`);
   } catch (e) {
     // 失败回滚
     if (removedItem && removedIdx >= 0) list.splice(removedIdx, 0, removedItem);
@@ -5983,18 +5871,18 @@ async function batchUnarchiveSelected() {
   }
 }
 
-// 删除归档记录（单个/批量通用，软删除进回收站）
+// 删除归档记录（单个/批量通用，硬删除：记录与图片/附件一并永久删除）
 async function deleteArchivedItem(type, ids) {
   const config = trashConfig[type];
   if (!config || !Array.isArray(ids) || ids.length === 0) return;
-  if (!confirm(`确定删除选中的 ${ids.length} 条归档记录吗？删除后可在回收站中恢复。`)) return;
+  if (!confirm(`确定要永久删除选中的 ${ids.length} 条归档记录吗？其图片/附件将一并删除，无法恢复！`)) return;
   try {
     if (ids.length === 1) {
       await apiCall('DELETE', `/${config.path}/${ids[0]}`);
     } else {
       await apiCall('POST', `/${config.path}/batch-delete`, { ids });
     }
-    showToast('已删除，可在回收站中恢复');
+    showToast('已永久删除（含图片/附件）');
     openArchiveModal(type);
   } catch (e) {
     showToast('删除失败', 'error');

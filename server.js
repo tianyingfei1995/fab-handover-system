@@ -1279,12 +1279,12 @@ function registerCrudRoutes(opts) {
     }
   });
 
-  // 软删除
+  // 删除（硬删除：记录连同其图片/附件文件一并永久删除，不可恢复）
   app.delete(`${basePath}/:id`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (Number.isNaN(id)) return res.status(400).json({ error: '无效的记录ID' });
-    const info = db.prepare(`UPDATE ${table} SET deleted_at = datetime('now', 'localtime'), archived_at = NULL WHERE id = ? AND deleted_at IS NULL${deptWhere(req)}`).run(id, ...deptParam(req));
-    if (info.changes === 0) return res.status(404).json({ error: '记录不存在或无权操作' });
+    const result = deleteRecordsWithFiles(table, [id], deptWhere(req), deptParam(req));
+    if (result.changes === 0) return res.status(404).json({ error: '记录不存在或无权操作' });
     res.json({ success: true });
   });
 
@@ -1302,21 +1302,20 @@ function registerCrudRoutes(opts) {
     res.json(rows);
   });
 
-  // 永久删除
+  // 永久删除（回收站遗留软删数据用：连同文件一并硬删除）
   app.delete(`${basePath}/:id/permanent`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
     const id = parseInt(req.params.id);
-    const info = db.prepare(`DELETE FROM ${table} WHERE id = ?${deptWhere(req)}`).run(id, ...deptParam(req));
-    if (info.changes === 0) return res.status(404).json({ error: '记录不存在或无权操作' });
+    const result = deleteRecordsWithFiles(table, [id], deptWhere(req), deptParam(req));
+    if (result.changes === 0) return res.status(404).json({ error: '记录不存在或无权操作' });
     res.json({ success: true });
   });
 
-  // 批量软删除
+  // 批量硬删除（记录连同其图片/附件文件一并永久删除）
   app.post(`${basePath}/batch-delete`, authMiddleware, checkModulePermission(module, 'delete'), (req, res) => {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) return res.json({ changes: 0 });
-    const placeholders = ids.map(() => '?').join(', ');
-    const info = db.prepare(`UPDATE ${table} SET deleted_at = datetime('now', 'localtime'), archived_at = NULL WHERE id IN (${placeholders}) AND deleted_at IS NULL${deptWhere(req)}`).run(...ids, ...deptParam(req));
-    res.json({ changes: info.changes });
+    const result = deleteRecordsWithFiles(table, ids, deptWhere(req), deptParam(req));
+    res.json({ changes: result.changes });
   });
 
   // ===== 归档功能（临时隐藏记录，不进回收站） =====
@@ -1481,18 +1480,20 @@ registerCrudRoutes({
   hasBatchStatus: true
 });
 
-// 按 owner 删除机台
+// 按 owner 删除机台（硬删除：记录与文件一并删除）
 app.delete('/api/machines/owner/:owner', authMiddleware, checkModulePermission('machine', 'delete'), (req, res) => {
   const owner = decodeURIComponent(req.params.owner);
-  const info = db.prepare(`UPDATE machines SET deleted_at = datetime('now', 'localtime') WHERE owner = ? AND deleted_at IS NULL${deptWhere(req)}`).run(owner, ...deptParam(req));
-  res.json({ changes: info.changes });
+  const rows = db.prepare(`SELECT id FROM machines WHERE owner = ? AND deleted_at IS NULL${deptWhere(req)}`).all(owner, ...deptParam(req));
+  const result = deleteRecordsWithFiles('machines', rows.map(r => r.id));
+  res.json({ changes: result.changes });
 });
 
-// 按 name 删除机台
+// 按 name 删除机台（硬删除：记录与文件一并删除）
 app.delete('/api/machines/name/:name', authMiddleware, checkModulePermission('machine', 'delete'), (req, res) => {
   const name = decodeURIComponent(req.params.name);
-  const info = db.prepare(`UPDATE machines SET deleted_at = datetime('now', 'localtime') WHERE machine_name = ? AND deleted_at IS NULL${deptWhere(req)}`).run(name, ...deptParam(req));
-  res.json({ changes: info.changes });
+  const rows = db.prepare(`SELECT id FROM machines WHERE machine_name = ? AND deleted_at IS NULL${deptWhere(req)}`).all(name, ...deptParam(req));
+  const result = deleteRecordsWithFiles('machines', rows.map(r => r.id));
+  res.json({ changes: result.changes });
 });
 
 // 机台长期交接
@@ -1504,17 +1505,19 @@ registerCrudRoutes({
   hasBatchStatus: true
 });
 
-// 按 owner 删除长期机台
+// 按 owner 删除长期机台（硬删除：记录与文件一并删除）
 app.delete('/api/long-term-machines/owner/:owner', authMiddleware, checkModulePermission('lt-machine', 'delete'), (req, res) => {
   const owner = decodeURIComponent(req.params.owner);
-  const info = db.prepare(`UPDATE lt_machines SET deleted_at = datetime('now', 'localtime') WHERE owner = ? AND deleted_at IS NULL${deptWhere(req)}`).run(owner, ...deptParam(req));
-  res.json({ changes: info.changes });
+  const rows = db.prepare(`SELECT id FROM lt_machines WHERE owner = ? AND deleted_at IS NULL${deptWhere(req)}`).all(owner, ...deptParam(req));
+  const result = deleteRecordsWithFiles('lt_machines', rows.map(r => r.id));
+  res.json({ changes: result.changes });
 });
 
 app.delete('/api/long-term-machines/name/:name', authMiddleware, checkModulePermission('lt-machine', 'delete'), (req, res) => {
   const name = decodeURIComponent(req.params.name);
-  const info = db.prepare(`UPDATE lt_machines SET deleted_at = datetime('now', 'localtime') WHERE machine_name = ? AND deleted_at IS NULL${deptWhere(req)}`).run(name, ...deptParam(req));
-  res.json({ changes: info.changes });
+  const rows = db.prepare(`SELECT id FROM lt_machines WHERE machine_name = ? AND deleted_at IS NULL${deptWhere(req)}`).all(name, ...deptParam(req));
+  const result = deleteRecordsWithFiles('lt_machines', rows.map(r => r.id));
+  res.json({ changes: result.changes });
 });
 
 // LOT 交接
@@ -2214,6 +2217,94 @@ function cleanupEmptyDirs(dir) {
   } catch (_) {}
 }
 
+// ─── 硬删除：数据库记录与对应文件同步删除 ───
+
+// 收集全库所有记录（含归档记录与遗留软删记录）引用的文件相对路径集合
+// 归档（archived）数据的文件同样视为"被引用"，永远不会被当作孤儿清理
+function collectAllReferencedPaths() {
+  const referenced = new Set();
+  const addVal = (val, isAttachment) => {
+    if (!val) return;
+    const paths = isAttachment
+      ? parseAttachmentPaths(val)
+      : String(val).split(',').map(p => p.trim()).filter(Boolean);
+    for (const p of paths) {
+      const rel = String(p).replace(/^\/uploads\//, '');
+      if (rel) referenced.add(rel);
+    }
+  };
+  for (const { table, field } of IMAGE_TABLES) {
+    try { for (const row of db.prepare(`SELECT ${field} AS v FROM ${table}`).all()) addVal(row.v, false); } catch (_) {}
+  }
+  for (const { table, field } of ATTACHMENT_TABLES) {
+    try { for (const row of db.prepare(`SELECT ${field} AS v FROM ${table}`).all()) addVal(row.v, true); } catch (_) {}
+  }
+  return referenced;
+}
+
+// 删除一组文件中"已无任何数据库引用"的部分（被其他记录共享的文件受保护不删）
+function unlinkFilesIfUnreferenced(relPaths) {
+  let deletedFiles = 0, freedBytes = 0;
+  const rels = [...relPaths].filter(Boolean);
+  if (rels.length === 0) return { deletedFiles, freedBytes };
+  const referenced = collectAllReferencedPaths();
+  const ownership = loadUploadOwnership();
+  let ownershipDirty = false;
+  for (const rel of rels) {
+    if (referenced.has(rel)) continue; // 仍被其他记录引用（含归档记录），不能删
+    const fullPath = path.join(UPLOAD_DIR, rel);
+    try {
+      const stat = fs.statSync(fullPath);
+      fs.unlinkSync(fullPath);
+      deletedFiles++;
+      freedBytes += stat.size;
+    } catch (_) { /* 磁盘上不存在则跳过 */ }
+    if (ownership[rel]) { delete ownership[rel]; ownershipDirty = true; }
+  }
+  if (ownershipDirty) saveUploadOwnership(ownership);
+  return { deletedFiles, freedBytes };
+}
+
+// 硬删除记录：删除数据库行的同时，把仅被这些记录引用的图片/附件一并物理删除
+// deptCondition/deptParams 用于部门数据隔离（与 CRUD 路由的 deptWhere/deptParam 一致）
+function deleteRecordsWithFiles(table, ids, deptCondition = '', deptParams = []) {
+  ids = ids.map(id => parseInt(id, 10)).filter(id => !Number.isNaN(id));
+  if (ids.length === 0) return { changes: 0, deletedFiles: 0, freedBytes: 0 };
+  const placeholders = ids.map(() => '?').join(', ');
+
+  // 1. 删除前收集这些记录携带的文件路径（图片 + 附件）
+  const imgCfg = IMAGE_TABLES.find(t => t.table === table);
+  const attCfg = ATTACHMENT_TABLES.find(t => t.table === table);
+  const fileFields = [imgCfg && imgCfg.field, attCfg && attCfg.field].filter(Boolean);
+  const relPaths = new Set();
+  if (fileFields.length > 0) {
+    const rows = db.prepare(`SELECT ${fileFields.join(', ')} FROM ${table} WHERE id IN (${placeholders})${deptCondition}`).all(...ids, ...deptParams);
+    for (const row of rows) {
+      if (imgCfg && row[imgCfg.field]) {
+        for (const p of String(row[imgCfg.field]).split(',').map(p => p.trim()).filter(Boolean)) {
+          relPaths.add(p.replace(/^\/uploads\//, ''));
+        }
+      }
+      if (attCfg && row[attCfg.field]) {
+        for (const p of parseAttachmentPaths(row[attCfg.field])) {
+          relPaths.add(String(p).replace(/^\/uploads\//, ''));
+        }
+      }
+    }
+  }
+
+  // 2. 硬删除数据库记录（不可恢复，不走回收站）
+  const info = db.prepare(`DELETE FROM ${table} WHERE id IN (${placeholders})${deptCondition}`).run(...ids, ...deptParams);
+  if (info.changes === 0) return { changes: 0, deletedFiles: 0, freedBytes: 0 };
+
+  // 3. 删除不再被任何记录引用的文件（归档记录的引用同样受保护）
+  const { deletedFiles, freedBytes } = unlinkFilesIfUnreferenced(relPaths);
+  if (deletedFiles > 0) {
+    console.log(`[删除] ${table} 硬删除 ${info.changes} 条记录，同步清理 ${deletedFiles} 个无引用文件，释放 ${(freedBytes / 1024).toFixed(1)} KB`);
+  }
+  return { changes: info.changes, deletedFiles, freedBytes };
+}
+
 // ─── 磁盘空间监控驱动的数据清理提醒 ───
 // 当磁盘剩余空间低于阈值时，提醒管理员清理（只提醒，不自动删除）
 // 清理范围：本部门软删除记录的图片/附件 + 本部门归属的孤儿文件（无时间保留期）
@@ -2317,6 +2408,58 @@ function scheduleDiskMonitor() {
 
 // 启动磁盘监控
 scheduleDiskMonitor();
+
+// ─── 孤儿文件每日自动清理 ───
+// 规则：
+//  - 每天自动执行一次（服务启动 30 秒后也会先执行一次）
+//  - 只删除"30 天以前"的孤儿文件：不被任何记录引用才算孤儿；
+//    归档（archived）数据的文件仍视为被引用，永不会被自动清理
+//  - 30 天内新增的孤儿先保留，给用户编辑记录留出容错时间
+const ORPHAN_AUTO_CLEAN_DAYS = 30;
+
+function autoCleanOrphanFiles() {
+  try {
+    const orphans = collectTrueOrphanImages(null);
+    const cutoff = Date.now() - ORPHAN_AUTO_CLEAN_DAYS * 24 * 60 * 60 * 1000;
+    const ownership = loadUploadOwnership();
+    const deletedFiles = [];
+    let freedBytes = 0, ownershipDirty = false;
+    for (const f of orphans) {
+      let stat;
+      try { stat = fs.statSync(f.fullPath); } catch (_) { continue; }
+      if (stat.mtimeMs >= cutoff) continue; // 30 天内的孤儿先保留
+      try {
+        fs.unlinkSync(f.fullPath);
+        freedBytes += stat.size;
+        deletedFiles.push({
+          path: f.relPath, size: stat.size, source: 'orphan',
+          department: ownership[f.relPath] ? ownership[f.relPath].department : null,
+        });
+        if (ownership[f.relPath]) { delete ownership[f.relPath]; ownershipDirty = true; }
+      } catch (e) {
+        console.error(`[清理] 自动清理孤儿失败 ${f.relPath}:`, e.message);
+      }
+    }
+    if (ownershipDirty) saveUploadOwnership(ownership);
+    cleanupEmptyDirs(UPLOAD_DIR);
+    if (deletedFiles.length > 0) {
+      writeCleanupLog({
+        department: null, totalScanned: orphans.length, totalReferenced: 0,
+        deletedCount: deletedFiles.length, freedBytes, deletedFiles,
+        expiredDeletedCount: 0, trueOrphanCount: deletedFiles.length,
+      });
+      console.log(`[清理] 每日孤儿自动清理: 删除 ${deletedFiles.length} 个超过 ${ORPHAN_AUTO_CLEAN_DAYS} 天的无引用文件，释放 ${(freedBytes / 1024 / 1024).toFixed(2)} MB`);
+    }
+  } catch (e) {
+    console.error('[清理] 每日孤儿自动清理异常:', e.message);
+  }
+}
+
+(function scheduleOrphanAutoClean() {
+  setTimeout(autoCleanOrphanFiles, 30 * 1000);                  // 启动 30 秒后先执行一次
+  setInterval(autoCleanOrphanFiles, 24 * 60 * 60 * 1000);       // 之后每天执行一次
+  console.log(`[清理] 孤儿文件每日自动清理已启用（仅清理 ${ORPHAN_AUTO_CLEAN_DAYS} 天前的无引用文件，归档数据的文件不受影响）`);
+})();
 
 // 清理预告 API（所有管理员登录后检查，根据磁盘剩余空间决定是否通知）
 app.get('/api/cleanup-notice', authMiddleware, (req, res) => {
