@@ -314,8 +314,8 @@
           已归档记录
         </button>
       </div>
-      <!-- 批量操作栏 -->
-      <div class="batch-bar">
+      <!-- 批量操作栏：勾选记录后才显示 -->
+      <div class="batch-bar" id="machineBatchBar" style="display:none">
         <div class="batch-bar-left">
           <label class="batch-checkbox-all">
             <input type="checkbox" id="selectAllMachines" onchange="toggleSelectAll(this.checked)">
@@ -409,8 +409,8 @@
           已归档记录
         </button>
       </div>
-      <!-- 批量操作栏 -->
-      <div class="batch-bar">
+      <!-- 批量操作栏：勾选记录后才显示 -->
+      <div class="batch-bar" id="ltMachineBatchBar" style="display:none">
         <div class="batch-bar-left">
           <label class="batch-checkbox-all">
             <input type="checkbox" id="ltSelectAllMachines" onchange="toggleLtSelectAll(this.checked)">

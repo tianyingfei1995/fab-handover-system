@@ -2483,6 +2483,9 @@ function updateBatchCount() {
   const count = selectedMachineIds.size;
   const el = document.getElementById('batchCount');
   if (el) el.textContent = `已选 ${count} 项`;
+  // 未勾选任何行时隐藏批量操作栏，避免「取消选择」与「重置」看起来功能重复
+  const bar = document.getElementById('machineBatchBar');
+  if (bar) bar.style.display = count > 0 ? '' : 'none';
   const visibleIds = new Set(filteredMachineIds());
   const allVisible = [...visibleIds].every(id => selectedMachineIds.has(id));
   const head1 = document.getElementById('selectAllMachines');
@@ -3288,6 +3291,9 @@ function updateLtBatchCount() {
   const count = selectedLtMachineIds.size;
   const el = document.getElementById('ltBatchCount');
   if (el) el.textContent = `已选 ${count} 项`;
+  // 未勾选任何行时隐藏批量操作栏
+  const bar = document.getElementById('ltMachineBatchBar');
+  if (bar) bar.style.display = count > 0 ? '' : 'none';
   const visibleIds = new Set(filteredLtMachineIds());
   const allVisible = [...visibleIds].every(id => selectedLtMachineIds.has(id));
   const head1 = document.getElementById('ltSelectAllMachines');
