@@ -2312,6 +2312,7 @@ function renderMachineTable() {
 
 function openMachineModal() {
   imageContext = 'machine';
+  attachContext = 'machine';
   document.getElementById('machineModalTitle').textContent = '新增机台';
   document.getElementById('machineEditId').value = '';
   document.getElementById('mMachineName').value = '';
@@ -2328,6 +2329,9 @@ function openMachineModal() {
     + '<span style="color:#2563eb;font-size:14px;font-weight:700;">F</span><span style="color:#111;">：</span></div>';
   document.getElementById('mRemark').value = '';
   resetMachineImage();
+  currentAttachments = [];
+  syncAttachments();
+  renderAttachmentList();
   openModal('machineModal');
 }
 
@@ -2358,6 +2362,7 @@ function editMachine(id) {
   const m = machines.find(x => x.id === id);
   if (!m) return;
   imageContext = 'machine';
+  attachContext = 'machine';
   document.getElementById('machineModalTitle').textContent = '编辑机台';
   document.getElementById('machineEditId').value = m.id;
   document.getElementById('mMachineName').value = m.machine_name;
@@ -2371,6 +2376,9 @@ function editMachine(id) {
   document.getElementById('mAlarmInfo').innerHTML = sanitizeHtml(m.alarm_info || '');
   document.getElementById('mRemark').value = m.remark || '';
   loadMachineImages(parseImagePaths(m.image_path));
+  currentAttachments = parseAttachments(m.attachments);
+  syncAttachments();
+  renderAttachmentList();
   openModal('machineModal');
 }
 
@@ -2385,7 +2393,8 @@ async function saveMachine() {
     owner: document.getElementById('mOwner').value.trim(),
     alarm_info: sanitizeHtml(document.getElementById('mAlarmInfo').innerHTML.trim()),
     remark: document.getElementById('mRemark').value.trim(),
-    image_path: document.getElementById('mImagePath').value || ''
+    image_path: document.getElementById('mImagePath').value || '',
+    attachments: document.getElementById('mAttachments').value || ''
   };
   if (!data.machine_name) { showToast('请填写机台名称', 'error'); return; }
 
@@ -2500,6 +2509,7 @@ function showMachineDetail(id) {
         </div>
         ${imageHtml}
       </div>
+      ${renderDetailAttachHtml(m.attachments)}
     </div>
   `;
 
@@ -3061,7 +3071,11 @@ function openLtMachineModal() {
     + '<span style="color:#2563eb;font-size:14px;font-weight:700;">F</span><span style="color:#111;">：</span></div>';
   document.getElementById('ltMRemark').value = '';
   imageContext = 'ltMachine';
+  attachContext = 'ltMachine';
   resetLtMachineImage();
+  currentAttachments = [];
+  syncAttachments();
+  renderAttachmentList();
   openModal('ltMachineModal');
 }
 
@@ -3096,7 +3110,11 @@ function editLtMachine(id) {
   document.getElementById('ltMAlarmInfo').innerHTML = sanitizeHtml(m.alarm_info || '');
   document.getElementById('ltMRemark').value = m.remark || '';
   imageContext = 'ltMachine';
+  attachContext = 'ltMachine';
   loadLtMachineImages(parseImagePaths(m.image_path));
+  currentAttachments = parseAttachments(m.attachments);
+  syncAttachments();
+  renderAttachmentList();
   openModal('ltMachineModal');
 }
 
@@ -3111,7 +3129,8 @@ async function saveLtMachine() {
     owner: document.getElementById('ltMOwner').value.trim(),
     alarm_info: sanitizeHtml(document.getElementById('ltMAlarmInfo').innerHTML.trim()),
     remark: document.getElementById('ltMRemark').value.trim(),
-    image_path: document.getElementById('ltMImagePath').value || ''
+    image_path: document.getElementById('ltMImagePath').value || '',
+    attachments: document.getElementById('ltMFromAttachments').value || ''
   };
   if (!data.machine_name) { showToast('请填写机台名称', 'error'); return; }
 
@@ -3197,6 +3216,7 @@ function showLtMachineDetail(id) {
         <div class="detail-section-title"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>机台图片异常记录</div>
         ${imageHtml}
       </div>
+      ${renderDetailAttachHtml(m.attachments)}
     </div>
   `;
 
@@ -3441,6 +3461,7 @@ async function batchDeleteLotHandovers() {
 // 弹窗
 function openLotHandoverModal() {
   imageContext = 'lotHandover';
+  attachContext = 'lotHandover';
   document.getElementById('lotHandoverModalTitle').textContent = '新增LOT交接';
   document.getElementById('lotHEditId').value = '';
   document.getElementById('lotHLotId').value = '';
@@ -3450,6 +3471,9 @@ function openLotHandoverModal() {
   document.getElementById('lotHFollowUpImages').value = '';
   currentImages = [];
   renderGallery();
+  currentAttachments = [];
+  syncAttachments();
+  renderAttachmentList();
   openModal('lotHandoverModal');
 }
 
@@ -3457,6 +3481,7 @@ function editLotHandover(id) {
   const h = lotHandovers.find(x => x.id === id);
   if (!h) return;
   imageContext = 'lotHandover';
+  attachContext = 'lotHandover';
   document.getElementById('lotHandoverModalTitle').textContent = '编辑LOT交接';
   document.getElementById('lotHEditId').value = h.id;
   document.getElementById('lotHLotId').value = h.lot_id || '';
@@ -3467,6 +3492,9 @@ function editLotHandover(id) {
   document.getElementById('lotHFollowUpImages').value = h.follow_up_images || '';
   currentImages = parseImagePaths(h.follow_up_images);
   renderGallery();
+  currentAttachments = parseAttachments(h.attachments);
+  syncAttachments();
+  renderAttachmentList();
   openModal('lotHandoverModal');
 }
 
@@ -3489,7 +3517,8 @@ async function saveLotHandover() {
     detail: document.getElementById('lotHDetail').value.trim(),
     comment: document.getElementById('lotHComment').value.trim(),
     follow_up: document.getElementById('lotHFollowUp').innerHTML.trim(),
-    follow_up_images: document.getElementById('lotHFollowUpImages').value.trim()
+    follow_up_images: document.getElementById('lotHFollowUpImages').value.trim(),
+    attachments: document.getElementById('lotHAttachments').value.trim()
   };
   if (!data.lot_id) { showToast('请填写 Lot ID', 'error'); return; }
 
@@ -3579,6 +3608,7 @@ function showLotHandoverDetail(id) {
         <span class="detail-label">图片</span>
         <div class="detail-value">${imageHtml}</div>
       </div>
+      ${renderDetailAttachHtml(h.attachments)}
     </div>
   `;
 
@@ -4308,7 +4338,11 @@ function openDutyIssueModal() {
   document.getElementById('diSolution').innerHTML = '';
   document.getElementById('diOwnerConfirm').innerHTML = '';
   imageContext = 'dutyIssue';
+  attachContext = 'dutyIssue';
   resetDutyIssueImage();
+  currentAttachments = [];
+  syncAttachments();
+  renderAttachmentList();
   openModal('dutyIssueModal');
 }
 
@@ -4323,7 +4357,11 @@ function editDutyIssue(id) {
   document.getElementById('diSolution').innerHTML = sanitizeHtml(d.solution) || '';
   document.getElementById('diOwnerConfirm').innerHTML = sanitizeHtml(d.owner_confirm) || '';
   imageContext = 'dutyIssue';
+  attachContext = 'dutyIssue';
   loadDutyIssueImages(parseImagePaths(d.image_path));
+  currentAttachments = parseAttachments(d.attachments);
+  syncAttachments();
+  renderAttachmentList();
   openModal('dutyIssueModal');
 }
 
@@ -4335,7 +4373,8 @@ async function saveDutyIssue() {
     image_path: document.getElementById('diImagePath').value || '',
     problem_process: document.getElementById('diProblemProcess').innerHTML.trim(),
     solution: document.getElementById('diSolution').innerHTML.trim(),
-    owner_confirm: document.getElementById('diOwnerConfirm').innerHTML.trim()
+    owner_confirm: document.getElementById('diOwnerConfirm').innerHTML.trim(),
+    attachments: document.getElementById('diAttachments').value || ''
   };
 
   if (!stripHtml(data.category1) && !stripHtml(data.category2) && !stripHtml(data.problem_process)) {
@@ -4417,6 +4456,7 @@ function showDutyIssueDetail(id) {
         <span class="detail-label">截图 (${imagePaths.length}张)</span>
         <div class="detail-value">${imageHtml}</div>
       </div>
+      ${renderDetailAttachHtml(d.attachments)}
     </div>
   `;
 
@@ -4581,6 +4621,7 @@ function showDailyHandoverDetail(id) {
         <span class="detail-label">截图 (${imgs.length}张)</span>
         <div class="detail-value">${imageHtml}</div>
       </div>
+      ${renderDetailAttachHtml(h.attachments)}
     </div>
   `;
   const editBtn = document.getElementById('dhDetailEditBtn');
@@ -4602,7 +4643,11 @@ function openDailyHandoverModal() {
   document.getElementById('dhCreatedBy').value = '';
   document.getElementById('dhDueDate').value = '';
   imageContext = 'dailyHandover';
+  attachContext = 'dailyHandover';
   resetDhImage();
+  currentAttachments = [];
+  syncAttachments();
+  renderAttachmentList();
   openModal('dailyHandoverModal');
 }
 
@@ -4619,7 +4664,11 @@ function editDailyHandover(id) {
   document.getElementById('dhCreatedBy').value = h.created_by || '';
   document.getElementById('dhDueDate').value = h.due_date || '';
   imageContext = 'dailyHandover';
+  attachContext = 'dailyHandover';
   loadDhImages(parseImagePaths(h.image_path));
+  currentAttachments = parseAttachments(h.attachments);
+  syncAttachments();
+  renderAttachmentList();
   openModal('dailyHandoverModal');
 }
 
@@ -4633,7 +4682,8 @@ async function saveDailyHandover() {
     status: document.getElementById('dhStatus').value,
     created_by: document.getElementById('dhCreatedBy').value.trim(),
     due_date: document.getElementById('dhDueDate').value || '',
-    image_path: document.getElementById('dhImagePath').value || ''
+    image_path: document.getElementById('dhImagePath').value || '',
+    attachments: document.getElementById('dhAttachments').value || ''
   };
   if (!stripHtml(data.title).trim()) { showToast('请填写标题', 'error'); return; }
 
@@ -4922,6 +4972,9 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 let currentImages = [];
 // 当前图片编辑上下文：'machine' 或 'ltMachine'
 let imageContext = 'machine';
+// 附件相关
+let currentAttachments = []; // [{path, name, size}]
+let attachContext = 'machine';
 // 灯箱状态
 let lightboxImages = [];
 let lightboxIndex = 0;
@@ -4976,6 +5029,167 @@ function imgCtx() {
     area: 'machineImageArea',
     uploadUrl: '/api/machines/upload'
   };
+}
+
+// 附件上下文
+function attachCtx() {
+  if (attachContext === 'ltMachine') {
+    return {
+      list: 'ltMachineAttachList',
+      input: 'ltMFromAttachments',
+      fileInput: 'ltMachineAttachFileInput',
+      uploadUrl: '/api/long-term-machines/upload-attachment'
+    };
+  }
+  if (attachContext === 'lotHandover') {
+    return {
+      list: 'lotHAttachList',
+      input: 'lotHAttachments',
+      fileInput: 'lotHAttachFileInput',
+      uploadUrl: '/api/lot-handovers/upload-attachment'
+    };
+  }
+  if (attachContext === 'dutyIssue') {
+    return {
+      list: 'dutyIssueAttachList',
+      input: 'diAttachments',
+      fileInput: 'dutyIssueAttachFileInput',
+      uploadUrl: '/api/duty-issues/upload-attachment'
+    };
+  }
+  if (attachContext === 'dailyHandover') {
+    return {
+      list: 'dhAttachList',
+      input: 'dhAttachments',
+      fileInput: 'dhAttachFileInput',
+      uploadUrl: '/api/daily-handovers/upload-attachment'
+    };
+  }
+  return {
+    list: 'machineAttachList',
+    input: 'mAttachments',
+    fileInput: 'machineAttachFileInput',
+    uploadUrl: '/api/machines/upload-attachment'
+  };
+}
+
+// 解析附件 JSON
+function parseAttachments(str) {
+  if (!str || !str.trim()) return [];
+  try {
+    const arr = JSON.parse(str);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+// 同步附件 hidden 字段
+function syncAttachments() {
+  const ctx = attachCtx();
+  const el = document.getElementById(ctx.input);
+  if (el) el.value = JSON.stringify(currentAttachments);
+}
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+  if (!bytes) return '0 B';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+// 渲染附件列表
+function renderAttachmentList() {
+  const ctx = attachCtx();
+  const listEl = document.getElementById(ctx.list);
+  if (!listEl) return;
+  if (currentAttachments.length === 0) {
+    listEl.innerHTML = '';
+    return;
+  }
+  listEl.innerHTML = currentAttachments.map((a, i) => `
+    <div class="attach-item">
+      <div class="attach-icon">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      </div>
+      <div class="attach-info">
+        <span class="attach-name">${escapeHtml(a.name)}</span>
+        <span class="attach-size">${formatFileSize(a.size)}</span>
+      </div>
+      <button type="button" class="attach-remove" onclick="removeAttachment(${i})" title="移除">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+// 移除附件
+function removeAttachment(index) {
+  currentAttachments.splice(index, 1);
+  syncAttachments();
+  renderAttachmentList();
+}
+
+// 附件文件选择处理
+function handleAttachmentSelect(event) {
+  const inputId = event.target.id;
+  if (inputId === 'ltMachineAttachFileInput') attachContext = 'ltMachine';
+  else if (inputId === 'lotHAttachFileInput') attachContext = 'lotHandover';
+  else if (inputId === 'dutyIssueAttachFileInput') attachContext = 'dutyIssue';
+  else if (inputId === 'dhAttachFileInput') attachContext = 'dailyHandover';
+  else attachContext = 'machine';
+
+  const files = Array.from(event.target.files);
+  if (files.length === 0) return;
+  uploadAttachments(files);
+  event.target.value = '';
+}
+
+// 上传附件
+async function uploadAttachments(files) {
+  const fileList = Array.isArray(files) ? files : [files];
+  if (fileList.length === 0) return;
+
+  const ctx = attachCtx();
+  const formData = new FormData();
+  fileList.forEach(f => formData.append('files', f));
+
+  showToast('附件上传中...', 'success');
+  try {
+    const result = await apiCall('POST', ctx.uploadUrl.replace('/api/', ''), formData, true);
+    if (result.files && result.files.length > 0) {
+      currentAttachments.push(...result.files);
+      syncAttachments();
+      renderAttachmentList();
+      showToast(`成功上传 ${result.files.length} 个附件`);
+    }
+  } catch (e) {
+    showToast('附件上传失败：' + (e.error || e.message || '未知错误'), 'error');
+  }
+}
+
+// 生成详情页附件列表 HTML
+function renderDetailAttachHtml(attachmentsStr) {
+  const attachArr = parseAttachments(attachmentsStr);
+  if (attachArr.length === 0) return '';
+  return `
+    <div class="detail-attach-section">
+      <div class="detail-section-title">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+        附件（${attachArr.length}）
+      </div>
+      <div class="detail-attach-list">
+        ${attachArr.map(a => `
+          <a class="detail-attach-item" href="${escapeAttr(a.path)}" download="${escapeAttr(a.name)}" target="_blank">
+            <div class="attach-icon">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            </div>
+            <span class="attach-name">${escapeHtml(a.name)}</span>
+            <span class="attach-size">${formatFileSize(a.size)}</span>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+  `;
 }
 
 // 解析图片路径（兼容单图旧数据和多图逗号分隔）

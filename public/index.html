@@ -960,6 +960,18 @@ F："></div>
             </div>
             <input type="hidden" id="mImagePath" value="">
           </div>
+          <div class="form-group full-width">
+            <label>附件 <span class="upload-badge">单文件最大 2MB</span></label>
+            <div class="attach-upload-area">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('machineAttachFileInput').click()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                选择文件（可多选）
+              </button>
+              <input type="file" id="machineAttachFileInput" multiple style="display:none" onchange="handleAttachmentSelect(event)">
+            </div>
+            <div class="attach-list" id="machineAttachList"></div>
+            <input type="hidden" id="mAttachments" value="">
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1101,6 +1113,18 @@ F："></div>
             </div>
             <input type="hidden" id="ltMImagePath" value="">
           </div>
+          <div class="form-group full-width">
+            <label>附件 <span class="upload-badge">单文件最大 2MB</span></label>
+            <div class="attach-upload-area">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('ltMachineAttachFileInput').click()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                选择文件（可多选）
+              </button>
+              <input type="file" id="ltMachineAttachFileInput" multiple style="display:none" onchange="handleAttachmentSelect(event)">
+            </div>
+            <div class="attach-list" id="ltMachineAttachList"></div>
+            <input type="hidden" id="ltMFromAttachments" value="">
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1240,6 +1264,18 @@ F："></div>
             </div>
             <input type="hidden" id="dhImagePath" value="">
           </div>
+          <div class="form-group full-width">
+            <label>附件 <span class="upload-badge">单文件最大 2MB</span></label>
+            <div class="attach-upload-area">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('dhAttachFileInput').click()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                选择文件（可多选）
+              </button>
+              <input type="file" id="dhAttachFileInput" multiple style="display:none" onchange="handleAttachmentSelect(event)">
+            </div>
+            <div class="attach-list" id="dhAttachList"></div>
+            <input type="hidden" id="dhAttachments" value="">
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1354,6 +1390,19 @@ F："></div>
                 <span>截图后按 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴，或点击上方按钮选择多张图片</span>
               </div>
             </div>
+            <input type="hidden" id="lotHFollowUpImages" value="">
+          </div>
+          <div class="form-group full-width">
+            <label>附件 <span class="upload-badge">单文件最大 2MB</span></label>
+            <div class="attach-upload-area">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('lotHAttachFileInput').click()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                选择文件（可多选）
+              </button>
+              <input type="file" id="lotHAttachFileInput" multiple style="display:none" onchange="handleAttachmentSelect(event)">
+            </div>
+            <div class="attach-list" id="lotHAttachList"></div>
+            <input type="hidden" id="lotHAttachments" value="">
           </div>
         </div>
       </div>
@@ -1609,6 +1658,18 @@ F："></div>
               </div>
             </div>
             <input type="hidden" id="diImagePath" value="">
+          </div>
+          <div class="form-group full-width">
+            <label>附件 <span class="upload-badge">单文件最大 2MB</span></label>
+            <div class="attach-upload-area">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('dutyIssueAttachFileInput').click()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                选择文件（可多选）
+              </button>
+              <input type="file" id="dutyIssueAttachFileInput" multiple style="display:none" onchange="handleAttachmentSelect(event)">
+            </div>
+            <div class="attach-list" id="dutyIssueAttachList"></div>
+            <input type="hidden" id="diAttachments" value="">
           </div>
         </div>
       </div>

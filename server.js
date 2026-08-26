@@ -137,6 +137,7 @@ function initDb() {
       alarm_info TEXT DEFAULT '',
       remark TEXT DEFAULT '',
       image_path TEXT DEFAULT '',
+      attachments TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime')),
       deleted_at TEXT
@@ -158,6 +159,7 @@ function initDb() {
       alarm_info TEXT DEFAULT '',
       remark TEXT DEFAULT '',
       image_path TEXT DEFAULT '',
+      attachments TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime')),
       deleted_at TEXT
@@ -175,6 +177,7 @@ function initDb() {
       follow_up TEXT DEFAULT '',
       follow_up_images TEXT DEFAULT '',
       created_by TEXT DEFAULT '',
+      attachments TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime')),
       deleted_at TEXT
@@ -205,6 +208,7 @@ function initDb() {
       problem_process TEXT DEFAULT '',
       solution TEXT DEFAULT '',
       owner_confirm TEXT DEFAULT '',
+      attachments TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime')),
       deleted_at TEXT
@@ -223,6 +227,7 @@ function initDb() {
       created_by TEXT DEFAULT '',
       due_date TEXT DEFAULT '',
       image_path TEXT DEFAULT '',
+      attachments TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime')),
       deleted_at TEXT
@@ -301,6 +306,16 @@ function initDb() {
       console.log(`[迁移] 已为 ${t} 表增加 created_by 字段`);
     }
   }
+
+  // attachments 字段迁移：为各业务表增加附件列（幂等）
+  const attachmentTables = ['machines', 'lt_machines', 'lot_handovers', 'duty_issues', 'daily_handovers'];
+  for (const t of attachmentTables) {
+    const cols = db.prepare(`PRAGMA table_info(${t})`).all();
+    if (!cols.some(c => c.name === 'attachments')) {
+      db.exec(`ALTER TABLE ${t} ADD COLUMN attachments TEXT DEFAULT ''`);
+      console.log(`[迁移] 已为 ${t} 表增加 attachments 字段`);
+    }
+  }
 }
 
 initDb();
@@ -367,6 +382,21 @@ const upload = multer({
     const allowed = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
     if (allowed.test(file.originalname)) cb(null, true);
     else cb(new Error('不支持的文件格式'));
+  }
+});
+
+// 附件上传（通用文件，2MB 限制）
+const attachUpload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB per file
+  fileFilter: (req, file, cb) => {
+    // 禁止执行类文件，其他都允许
+    const dangerous = /\.(exe|bat|cmd|sh|js|vbs|ps1|msi|dll|so|dylib|apk|jar)$/i;
+    if (dangerous.test(file.originalname)) {
+      cb(new Error('不支持的文件类型（安全限制）'));
+    } else {
+      cb(null, true);
+    }
   }
 });
 
@@ -1155,6 +1185,24 @@ app.post(`${basePath}/upload`, authMiddleware, checkModulePermission(module, 'ed
     res.json({ paths: saved, skipped: toDelete.length ? toDelete.length : undefined });
   });
 });
+
+  // 附件上传
+  app.post(`${basePath}/upload-attachment`, authMiddleware, checkModulePermission(module, 'edit'), (req, res) => {
+    attachUpload.array('files', 50)(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (!req.files || req.files.length === 0) return res.status(400).json({ error: '未选择文件' });
+
+      const saved = [];
+      for (const f of req.files) {
+        saved.push({
+          path: `/uploads/${path.basename(path.dirname(f.path))}/${f.filename}`,
+          name: f.originalname,
+          size: f.size
+        });
+      }
+      res.json({ files: saved });
+    });
+  });
 }
 
 // ─── 注册各业务模块路由 ─────────────────────────────────
@@ -1164,7 +1212,7 @@ registerCrudRoutes({
   basePath: '/api/machines',
   table: 'machines',
   module: 'machine',
-  fields: ['machine_id', 'machine_name', 'status', 'area', 'process', 'process_status', 'shift', 'owner', 'alarm_info', 'remark', 'image_path'],
+  fields: ['machine_id', 'machine_name', 'status', 'area', 'process', 'process_status', 'shift', 'owner', 'alarm_info', 'remark', 'image_path', 'attachments'],
   hasBatchStatus: true
 });
 
@@ -1187,7 +1235,7 @@ registerCrudRoutes({
   basePath: '/api/long-term-machines',
   table: 'lt_machines',
   module: 'lt-machine',
-  fields: ['machine_id', 'machine_name', 'status', 'area', 'process', 'process_status', 'shift', 'owner', 'alarm_info', 'remark', 'image_path'],
+  fields: ['machine_id', 'machine_name', 'status', 'area', 'process', 'process_status', 'shift', 'owner', 'alarm_info', 'remark', 'image_path', 'attachments'],
   hasBatchStatus: true
 });
 
@@ -1209,7 +1257,7 @@ registerCrudRoutes({
   basePath: '/api/lot-handovers',
   table: 'lot_handovers',
   module: 'lot-handover',
-  fields: ['lot_id', 'status', 'detail', 'comment', 'follow_up', 'follow_up_images', 'created_by'],
+  fields: ['lot_id', 'status', 'detail', 'comment', 'follow_up', 'follow_up_images', 'created_by', 'attachments'],
   hasBatchStatus: false,
   hasCreatedBy: true
 });
@@ -1228,7 +1276,7 @@ registerCrudRoutes({
   basePath: '/api/duty-issues',
   table: 'duty_issues',
   module: 'duty-issue',
-  fields: ['category1', 'category2', 'image_path', 'problem_process', 'solution', 'owner_confirm'],
+  fields: ['category1', 'category2', 'image_path', 'problem_process', 'solution', 'owner_confirm', 'attachments'],
   hasBatchStatus: false
 });
 
@@ -1237,7 +1285,7 @@ registerCrudRoutes({
   basePath: '/api/daily-handovers',
   table: 'daily_handovers',
   module: 'daily-handover',
-  fields: ['title', 'content', 'priority', 'category', 'status', 'created_by', 'due_date', 'image_path'],
+  fields: ['title', 'content', 'priority', 'category', 'status', 'created_by', 'due_date', 'image_path', 'attachments'],
   hasBatchStatus: false
 });
 
@@ -1278,6 +1326,27 @@ const IMAGE_TABLES = [
   { table: 'daily_handovers', field: 'image_path'       },
 ];
 
+// 各表的附件字段配置（JSON 数组格式，存 path/name/size）
+const ATTACHMENT_TABLES = [
+  { table: 'machines',        field: 'attachments' },
+  { table: 'lt_machines',     field: 'attachments' },
+  { table: 'lot_handovers',   field: 'attachments' },
+  { table: 'duty_issues',     field: 'attachments' },
+  { table: 'daily_handovers', field: 'attachments' },
+];
+
+// 从附件 JSON 中提取文件路径列表
+function parseAttachmentPaths(val) {
+  if (!val || !val.trim()) return [];
+  try {
+    const arr = JSON.parse(val);
+    if (Array.isArray(arr)) {
+      return arr.map(a => a.path || '').filter(Boolean);
+    }
+  } catch (e) { /* 旧格式可能是逗号分隔 */ }
+  return val.split(',').map(p => p.trim()).filter(p => p);
+}
+
 // 收集有效记录（未删除）引用的图片
 // department 为 null 时收集全部
 function collectActiveReferencedImages(department = null) {
@@ -1293,6 +1362,23 @@ function collectActiveReferencedImages(department = null) {
         const val = row[field];
         if (!val || !val.trim()) continue;
         const paths = val.split(',').map(p => p.trim()).filter(p => p);
+        for (const p of paths) {
+          const cleanPath = p.replace(/^\/uploads\//, '');
+          if (cleanPath) referenced.add(cleanPath);
+        }
+      }
+    } catch (e) {
+      console.error(`[清理] 读取 ${table}.${field} 失败:`, e.message);
+    }
+  }
+  // 收集附件引用
+  for (const { table, field } of ATTACHMENT_TABLES) {
+    try {
+      const rows = db.prepare(
+        `SELECT ${field} FROM ${table} WHERE deleted_at IS NULL${deptCondition}`
+      ).all(...deptParam);
+      for (const row of rows) {
+        const paths = parseAttachmentPaths(row[field]);
         for (const p of paths) {
           const cleanPath = p.replace(/^\/uploads\//, '');
           if (cleanPath) referenced.add(cleanPath);
@@ -1342,6 +1428,31 @@ function collectExpiredDeletedImages(department = null) {
       console.error(`[清理] 查询 ${table} 过期删除记录失败:`, e.message);
     }
   }
+  // 收集过期删除记录的附件
+  for (const { table, field } of ATTACHMENT_TABLES) {
+    try {
+      const rows = db.prepare(
+        `SELECT id, department, deleted_at, ${field} FROM ${table}
+         WHERE deleted_at IS NOT NULL AND deleted_at <= ?${deptCondition}`
+      ).all(cutoffDate, ...deptParam);
+      for (const row of rows) {
+        const paths = parseAttachmentPaths(row[field]);
+        for (const p of paths) {
+          const cleanPath = p.replace(/^\/uploads\//, '');
+          if (cleanPath && !result.has(cleanPath)) {
+            result.set(cleanPath, {
+              table,
+              recordId: row.id,
+              department: row.department,
+              deletedAt: row.deleted_at,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`[清理] 查询 ${table} 过期附件失败:`, e.message);
+    }
+  }
   return result;
 }
 
@@ -1361,6 +1472,19 @@ function collectTrueOrphanImages(department = null) {
         const val = row[field];
         if (!val || !val.trim()) continue;
         const paths = val.split(',').map(p => p.trim()).filter(p => p);
+        for (const p of paths) {
+          const cleanPath = p.replace(/^\/uploads\//, '');
+          if (cleanPath) allReferenced.add(cleanPath);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+  // 收集所有被引用的附件（包括软删除）
+  for (const { table, field } of ATTACHMENT_TABLES) {
+    try {
+      const rows = db.prepare(`SELECT ${field} FROM ${table}`).all();
+      for (const row of rows) {
+        const paths = parseAttachmentPaths(row[field]);
         for (const p of paths) {
           const cleanPath = p.replace(/^\/uploads\//, '');
           if (cleanPath) allReferenced.add(cleanPath);
