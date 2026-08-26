@@ -371,6 +371,17 @@ kbd {
   transition: border-color 0.2s;
 }
 .filter-select:focus { outline: none; border-color: var(--accent-blue); }
+.filter-date {
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.2s;
+  font-size: 13px;
+}
+.filter-date:focus { outline: none; border-color: var(--accent-blue); }
 
 /* ─── 按钮 ─── */
 .btn {
@@ -394,6 +405,8 @@ kbd {
 .btn-sm { padding: 5px 10px; font-size: 13px; }
 .btn-trash { color: var(--text-faint); }
 .btn-trash:hover { color: var(--accent-orange); }
+.btn-reset { color: var(--text-faint); white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.btn-reset:hover { color: var(--accent-blue); }
 
 /* ─── 数据表格 ─── */
 .table-wrapper, .table-container, .table-wrap {

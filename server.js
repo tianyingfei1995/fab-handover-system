@@ -40,6 +40,156 @@ const loginAttempts = new Map();         // key: `${ip}:${employee_id}` → { co
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(path.join(UPLOAD_DIR, 'machines'), { recursive: true });
 
+// ─── 上传文件归属清单 ────────────────────────────────
+// 上传时记录"文件相对路径 -> 归属部门"，用于把孤儿图片/文件安全地界定给对应部门，
+// 使部门管理员可以清理本部门的孤儿，同时避免跨部门误删。
+const UPLOAD_OWNERSHIP_FILE = path.join(DATA_DIR, 'upload-ownership.json');
+let _uploadOwnership = null; // 内存缓存
+
+function loadUploadOwnership() {
+  if (_uploadOwnership) return _uploadOwnership;
+  try {
+    if (fs.existsSync(UPLOAD_OWNERSHIP_FILE)) {
+      _uploadOwnership = JSON.parse(fs.readFileSync(UPLOAD_OWNERSHIP_FILE, 'utf8'));
+    }
+  } catch (e) { /* 损坏则重置 */ }
+  _uploadOwnership = _uploadOwnership || {};
+  return _uploadOwnership;
+}
+
+function saveUploadOwnership(map) {
+  try {
+    fs.writeFileSync(UPLOAD_OWNERSHIP_FILE, JSON.stringify(map, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[归属] 保存上传归属清单失败:', e.message);
+  }
+}
+
+// 记录一批已保存上传文件（相对路径或 /uploads/ 开头路径）归属到当前用户部门
+function recordUploadOwnership(paths, req) {
+  if (!Array.isArray(paths) || paths.length === 0) return;
+  const map = loadUploadOwnership();
+  const dept = (req.user && req.user.department) || '';
+  const name = (req.user && (req.user.name || req.user.employee_id)) || '';
+  const now = new Date().toISOString();
+  let changed = false;
+  for (const p of paths) {
+    const clean = String(p).replace(/^\/uploads\//, '');
+    if (!clean) continue;
+    // 同一文件二次上传极罕见，保留首个归属即可；空归属性格优先保留有部门的记录
+    if (!map[clean]) {
+      map[clean] = { department: dept, name, uploadedAt: now };
+      changed = true;
+    }
+  }
+  if (changed) { _uploadOwnership = map; saveUploadOwnership(map); }
+}
+
+// 清理磁盘上已不存在的文件的归属记录（仅实际清理后调用）
+function pruneOwnershipManifest() {
+  const map = loadUploadOwnership();
+  let changed = false;
+  for (const rp of Object.keys(map)) {
+    if (!fs.existsSync(path.join(UPLOAD_DIR, rp))) {
+      delete map[rp];
+      changed = true;
+    }
+  }
+  if (changed) { _uploadOwnership = map; saveUploadOwnership(map); }
+}
+
+// 为"上线前上传、无归属记录"的历史文件自动补写归属（幂等）
+// 依据：文件被哪张记录引用（含软删记录）来决定归属部门
+//  - 被"有效记录"引用 → 取该记录部门（最可靠）
+//  - 仅被"软删记录"引用 → 取最近被删记录的部门（次可靠）
+//  - 被多条不同部门记录同时引用 → 判定为冲突，不自动归属（保持仅系统管理员可清理）
+//  - 无任何引用（真孤儿） → 无法推断，不做归属（仅系统管理员可清理）
+function backfillUploadOwnership({ dryRun = false } = {}) {
+  const map = loadUploadOwnership();
+  const files = scanUploadDir();
+
+  // relPath -> Set<dept>（有效记录）
+  const activeDepts = new Map();
+  // relPath -> { dept, deletedAt }（软删记录中最近删除的那条）
+  const recentDeleted = new Map();
+
+  const considerReferences = (field, rows) => {
+    for (const row of rows) {
+      const isDeleted = !!row.deleted_at;
+      // 从图片字段(逗号分隔)与附件字段(JSON)中提取相对路径
+      const rawVal = row[field] ?? '';
+      let paths = [];
+      if (field === 'attachments') {
+        paths = parseAttachmentPaths(rawVal);
+      } else {
+        paths = String(rawVal).split(',').map(p => p.trim()).filter(p => p);
+      }
+      for (const p of paths) {
+        const rel = String(p).replace(/^\/uploads\//, '');
+        if (!rel) continue;
+        if (!isDeleted) {
+          const s = activeDepts.get(rel) || new Set();
+          s.add(row.department || '');
+          activeDepts.set(rel, s);
+        } else {
+          const cur = recentDeleted.get(rel);
+          if (!cur || String(row.deleted_at) > String(cur.deletedAt)) {
+            recentDeleted.set(rel, { dept: row.department || '', deletedAt: row.deleted_at });
+          }
+        }
+      }
+    }
+  };
+
+  for (const { table, field } of IMAGE_TABLES) {
+    try {
+      const rows = db.prepare(`SELECT id, department, deleted_at, ${field} FROM ${table}`).all();
+      considerReferences(field, rows);
+    } catch (e) { /* ignore */ }
+  }
+  for (const { table, field } of ATTACHMENT_TABLES) {
+    try {
+      const rows = db.prepare(`SELECT id, department, deleted_at, ${field} FROM ${table}`).all();
+      considerReferences(field, rows);
+    } catch (e) { /* ignore */ }
+  }
+
+  let skiptExisting = 0, autoAssigned = 0, conflict = 0, trueOrphan = 0;
+  const assignedSample = [];
+  for (const f of files) {
+    const rel = f.relPath;
+    if (map[rel]) { skiptExisting++; continue; }
+    const actives = activeDepts.get(rel);
+    const deleted = recentDeleted.get(rel);
+    if (actives && actives.size === 1) {
+      const dept = [...actives][0];
+      if (!dryRun) {
+        map[rel] = { department: dept, name: '[自动回填]', uploadedAt: new Date().toISOString(), backfilled: true };
+      }
+      autoAssigned++;
+      if (assignedSample.length < 100) assignedSample.push({ path: rel, department: dept, source: 'active' });
+      continue;
+    }
+    if (actives && actives.size > 1) { conflict++; continue; }
+    if (deleted) {
+      if (!dryRun) {
+        map[rel] = { department: deleted.dept, name: '[自动回填]', uploadedAt: new Date().toISOString(), backfilled: true };
+      }
+      autoAssigned++;
+      if (assignedSample.length < 100) assignedSample.push({ path: rel, department: deleted.dept, source: 'deleted' });
+      continue;
+    }
+    trueOrphan++;
+  }
+
+  if (!dryRun) {
+    _uploadOwnership = map;
+    saveUploadOwnership(map);
+  }
+
+  return { scanned: files.length, skiptExisting, autoAssigned, conflict, trueOrphan, assignedSample };
+}
+
 // ─── 数据库初始化 ─────────────────────────────────────
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
@@ -268,7 +418,7 @@ function initDb() {
     stmt.run('工艺工程部', '工艺与制程', 4);
   }
 
-  // 初始化角色权限（admin 全权限；dept_admin/editor 可查改删；viewer 只读）
+  // 初始化角色权限（admin 全权限；dept_admin/editor 可查改不可删；viewer 只读）
   const permCount = db.prepare('SELECT COUNT(*) as c FROM role_permissions').get().c;
   if (permCount === 0) {
     const stmt = db.prepare('INSERT INTO role_permissions (role, module, can_view, can_edit, can_delete) VALUES (?, ?, ?, ?, ?)');
@@ -277,9 +427,9 @@ function initDb() {
         if (role === 'admin') {
           stmt.run(role, mod, 1, 1, 1);
         } else if (role === 'dept_admin') {
-          stmt.run(role, mod, 1, 1, 1);
+          stmt.run(role, mod, 1, 1, 0);
         } else if (role === 'editor') {
-          stmt.run(role, mod, 1, 1, 1);
+          stmt.run(role, mod, 1, 1, 0);
         } else {
           stmt.run(role, mod, 1, 0, 0);
         }
@@ -992,7 +1142,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
   `).all(...deptParam(req));
 
   const recentLots = db.prepare(`
-    SELECT lot_id, detail, updated_at FROM lot_handovers
+    SELECT id, lot_id, detail, updated_at FROM lot_handovers
     WHERE deleted_at IS NULL${deptWhere(req)} ORDER BY updated_at DESC LIMIT 10
   `).all(...deptParam(req));
 
@@ -1016,6 +1166,9 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 function registerCrudRoutes(opts) {
   const { basePath, table, module, fields, hasBatchStatus, hasCreatedBy } = opts;
 
+  // 读取该表实际存在的列，写入前过滤，避免因数据库 schema 漂移（如缺少某列）导致 INSERT/UPDATE 对所有人全部失败
+  const tableCols = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name));
+
   // 列表
   app.get(basePath, authMiddleware, checkModulePermission(module, 'view'), (req, res) => {
     const rows = db.prepare(`SELECT * FROM ${table} WHERE deleted_at IS NULL${deptWhere(req)} ORDER BY id DESC`).all(...deptParam(req));
@@ -1027,12 +1180,15 @@ function registerCrudRoutes(opts) {
     try {
       const data = {};
       for (const f of fields) {
-        if (req.body[f] !== undefined) data[f] = req.body[f];
+        // 仅写入真实存在的列，过滤客户端可能携带的非法/缺失字段
+        if (req.body[f] !== undefined && tableCols.has(f)) data[f] = req.body[f];
       }
       // 部门隔离：非 admin 由服务端强制写入归属部门，禁止客户端篡改
-      data.department = isAdminUser(req) ? (req.body.department !== undefined ? req.body.department : '') : req.user.department;
+      if (tableCols.has('department')) {
+        data.department = isAdminUser(req) ? (req.body.department !== undefined ? req.body.department : '') : req.user.department;
+      }
       // 自动填充创建人
-      if (hasCreatedBy) {
+      if (hasCreatedBy && tableCols.has('created_by')) {
         data.created_by = req.user.name || '';
       }
       const cols = Object.keys(data);
@@ -1046,7 +1202,7 @@ function registerCrudRoutes(opts) {
       res.json({ id: info.lastInsertRowid });
     } catch (e) {
       console.error(`[错误] 新增${table}失败:`, e.message);
-      res.status(400).json({ error: '新增失败，字段数据无效' });
+      res.status(400).json({ error: `新增失败：${e.message}` });
     }
   });
 
@@ -1056,7 +1212,7 @@ function registerCrudRoutes(opts) {
       const id = parseInt(req.params.id);
       const data = {};
       for (const f of fields) {
-        if (req.body[f] !== undefined) data[f] = req.body[f];
+        if (req.body[f] !== undefined && tableCols.has(f)) data[f] = req.body[f];
       }
       const cols = Object.keys(data);
       if (cols.length === 0) return res.status(400).json({ error: `无有效字段，允许的字段: ${fields.join(', ')}` });
@@ -1071,7 +1227,7 @@ function registerCrudRoutes(opts) {
       res.json({ success: true });
     } catch (e) {
       console.error(`[错误] 更新${table}失败:`, e.message);
-      res.status(400).json({ error: '更新失败，字段数据无效' });
+      res.status(400).json({ error: `更新失败：${e.message}` });
     }
   });
 
@@ -1181,6 +1337,9 @@ app.post(`${basePath}/upload`, authMiddleware, checkModulePermission(module, 'ed
     // 全部文件均非法则报错
     if (saved.length === 0) return res.status(400).json({ error: '上传的图片文件无效或不支持该格式' });
 
+    // 记录文件归属部门（供部门管理员界定/清理本部门孤儿图片）
+    recordUploadOwnership(saved, req);
+
     // 部分文件非法（理论上不多见），返回成功保存的路径并附带提示信息
     res.json({ paths: saved, skipped: toDelete.length ? toDelete.length : undefined });
   });
@@ -1200,6 +1359,8 @@ app.post(`${basePath}/upload`, authMiddleware, checkModulePermission(module, 'ed
           size: f.size
         });
       }
+      // 记录附件归属部门（供部门管理员界定/清理本部门孤儿附件）
+      recordUploadOwnership(saved.map(s => s.path), req);
       res.json({ files: saved });
     });
   });
@@ -1315,8 +1476,9 @@ app.get('/api/sign-in-members', authMiddleware, (req, res) => {
 const CLEANUP_LOG_DIR = path.join(__dirname, 'data', 'cleanup-logs');
 fs.mkdirSync(CLEANUP_LOG_DIR, { recursive: true });
 
-// 图片清理周期（天）— 删除满半年的记录对应图片将被清理
-const CLEANUP_INTERVAL_DAYS = 182;
+// 清理条件：只要磁盘空间低于阈值就清理，软删记录无时间保留期，全量过期
+// 因此不设置过期间隔，任何软删记录都立即进入可清理范围
+const CLEANUP_INTERVAL_DAYS = 0;
 
 // 各表的图片字段配置（包含软删除记录，因为回收站恢复后图片还要用）
 const IMAGE_TABLES = [
@@ -1495,18 +1657,15 @@ function collectTrueOrphanImages(department = null) {
   }
   
   // 找出孤儿
-  let orphans = allFiles.filter(f => !allReferenced.has(f.relPath));
-  
-  // 如果指定了部门，进一步过滤：只保留该部门曾经引用过的
-  // （从历史记录中无法准确判断，所以这里只做标记——真正的孤儿不按部门划分）
-  // 部门管理员看到的孤儿 = 全部孤儿中的一部分，但无法精确归属
-  // 解决方案：部门管理员不清理真正的孤儿，只清理"过期软删除记录的图片"
-  // 系统管理员清理全部（过期软删 + 孤儿）
+  const orphans = allFiles.filter(f => !allReferenced.has(f.relPath));
+
+  // 如果指定了部门，进一步按归属清单过滤：只返回明确归属本部门的孤儿文件
+  // 无归属记录的文件（本功能上线前上传的）不界定给任何部门，交由系统管理员清理，避免跨部门误删
   if (department) {
-    // 部门管理员不处理无主孤儿，只处理过期软删记录的图片
-    orphans = [];
+    const map = loadUploadOwnership();
+    return orphans.filter(f => map[f.relPath] && map[f.relPath].department === department);
   }
-  
+
   return orphans;
 }
 
@@ -1588,11 +1747,17 @@ function cleanupOrphanImages(dryRun = false, department = null) {
     const expiredDeletedMap = collectExpiredDeletedImages(department);
     result.expiredDeletedCount = expiredDeletedMap.size;
 
-    // 2. 收集"真正孤儿"图片（仅系统管理员清理）
+    // 2. 收集"真正孤儿"（系统管理员 department=null 清全部；部门管理员按非空部门清本部门归属的孤儿）
+    // 注意：department 为空字符串时（异常数据）不清理任何孤儿，避免部门权限升级为全局清理
     let trueOrphans = [];
-    if (!department) {
+    if (department === null) {
       trueOrphans = collectTrueOrphanImages(null);
       result.trueOrphanCount = trueOrphans.length;
+    } else if (department && department.trim()) {
+      trueOrphans = collectTrueOrphanImages(department);
+      result.trueOrphanCount = trueOrphans.length;
+    } else {
+      result.trueOrphanCount = 0;
     }
 
     // 3. 扫描磁盘文件（用于计算统计和获取文件大小）
@@ -1613,7 +1778,10 @@ function cleanupOrphanImages(dryRun = false, department = null) {
     const toDelete = new Map(); // relPath -> { size, source: 'expired'|'orphan', meta? }
 
     // 4a. 过期软删记录的图片
+    // 注意：若某文件仍被"有效记录"（未删除）引用，即使同时出现在过期软删记录中也不能删除，
+    // 否则会破坏仍在展示中的记录（详情图片/附件打不开）。
     for (const [relPath, meta] of expiredDeletedMap) {
+      if (activeRefs.has(relPath)) continue;
       if (!toDelete.has(relPath)) {
         const fullPath = fileMap.get(relPath);
         let fileSize = 0;
@@ -1627,17 +1795,21 @@ function cleanupOrphanImages(dryRun = false, department = null) {
       }
     }
 
-    // 4b. 真正的孤儿图片（仅系统管理员）
-    if (!department) {
-      for (const orphan of trueOrphans) {
-        if (!toDelete.has(orphan.relPath)) {
-          let fileSize = 0;
-          try {
-            const stat = fs.statSync(orphan.fullPath);
-            fileSize = stat.size;
-          } catch (_) {}
-          toDelete.set(orphan.relPath, { size: fileSize, source: 'orphan' });
-        }
+    // 4b. 真正的孤儿图片（系统管理员清全部；部门管理员清本部门归属的孤儿）
+    const ownershipMap = loadUploadOwnership();
+    for (const orphan of trueOrphans) {
+      if (!toDelete.has(orphan.relPath)) {
+        let fileSize = 0;
+        try {
+          const stat = fs.statSync(orphan.fullPath);
+          fileSize = stat.size;
+        } catch (_) {}
+        const owner = ownershipMap[orphan.relPath] || {};
+        toDelete.set(orphan.relPath, {
+          size: fileSize,
+          source: 'orphan',
+          meta: owner.department ? { department: owner.department } : null,
+        });
       }
     }
 
@@ -1675,6 +1847,11 @@ function cleanupOrphanImages(dryRun = false, department = null) {
     // 6. 清理空子目录（自底向上）——仅系统管理员全量清理时执行
     if (!dryRun && !department) {
       cleanupEmptyDirs(UPLOAD_DIR);
+    }
+
+    // 6.5 清理归属清单中已不存在的文件记录（仅实际执行后）
+    if (!dryRun) {
+      pruneOwnershipManifest();
     }
 
     // 7. 写日志（仅实际执行时）
@@ -1718,7 +1895,7 @@ function cleanupEmptyDirs(dir) {
 // 清理范围不变：过期软删记录图片 + 无主孤儿图片
 
 // 磁盘空间阈值（字节）
-const DISK_WARNING_BYTES = 5 * 1024 * 1024 * 1024;  // 5GB — 开始提醒系统管理员
+const DISK_WARNING_BYTES = 10 * 1024 * 1024 * 1024;  // 10GB — 开始提醒并自动触发清理
 const DISK_URGENT_BYTES  = 2 * 1024 * 1024 * 1024;  // 2GB — 升级通知部门管理员
 
 // 获取指定路径所在磁盘的剩余空间（字节）
@@ -1789,9 +1966,26 @@ function scheduleDiskMonitor() {
     const freeGB = (freeBytes / (1024 * 1024 * 1024)).toFixed(2);
     
     if (freeBytes < DISK_URGENT_BYTES) {
-      console.log(`[清理] ⚠️ 磁盘剩余 ${freeGB}GB，已低于紧急阈值 2GB，请尽快清理`);
+      console.log(`[清理] ⚠️ 磁盘剩余 ${freeGB}GB，已低于紧急阈值 2GB，自动触发清理...`);
+      // 自动清理：系统管理员范围（全量），不传 department 即全量
+      try {
+        const result = cleanupOrphanImages(false, null);
+        if (result.deletedCount > 0) {
+          console.log(`[清理] 自动清理完成：删除 ${result.deletedCount} 个文件，释放 ${(result.freedBytes / 1024 / 1024).toFixed(2)}MB`);
+        }
+      } catch (e) {
+        console.error('[清理] 自动清理失败:', e.message);
+      }
     } else if (freeBytes < DISK_WARNING_BYTES) {
-      console.log(`[清理] 磁盘剩余 ${freeGB}GB，低于预警阈值 5GB，已提醒管理员清理`);
+      console.log(`[清理] 磁盘剩余 ${freeGB}GB，低于预警阈值 10GB，自动触发清理...`);
+      try {
+        const result = cleanupOrphanImages(false, null);
+        if (result.deletedCount > 0) {
+          console.log(`[清理] 自动清理完成：删除 ${result.deletedCount} 个文件，释放 ${(result.freedBytes / 1024 / 1024).toFixed(2)}MB`);
+        }
+      } catch (e) {
+        console.error('[清理] 自动清理失败:', e.message);
+      }
     }
   };
   
@@ -1803,7 +1997,7 @@ function scheduleDiskMonitor() {
   setInterval(check, ONE_HOUR);
   
   const freeBytes = getDiskFreeSpace();
-  console.log(`[清理] 磁盘空间监控已启动（当前剩余: ${formatDiskSpace(freeBytes)}，预警: 5GB，紧急: 2GB）`);
+  console.log(`[清理] 磁盘空间监控已启动（当前剩余: ${formatDiskSpace(freeBytes)}，预警: 10GB，紧急: 2GB）`);
 }
 
 // 启动磁盘监控
@@ -1827,19 +2021,20 @@ app.get('/api/cleanup-notice', authMiddleware, (req, res) => {
   // 判断紧急程度
   const isUrgent = freeBytes < DISK_URGENT_BYTES;
   
-  // 根据角色决定是否通知
+  // 根据角色决定是否通知（通知顺序：先部门管理员，最后系统管理员）
   let shouldNotify = false;
   let notifyLevel = 'warning'; // warning | urgent
   
-  if (userRole === 'admin') {
-    // 系统管理员：低于 5GB 就通知
-    shouldNotify = !status.adminApproved;
-    notifyLevel = isUrgent ? 'urgent' : 'warning';
-  } else if (userRole === 'dept_admin') {
-    // 部门管理员：仅在紧急阶段（<2GB）且系统管理员还没处理时通知
+  if (userRole === 'dept_admin') {
+    // 部门管理员：预警阶段（<10GB）先通知，各自清理本部门
+    // 先部门、后系统：部门管理员先处理，系统管理员最后才兜底
     const deptDismissed = status.deptAdminsDismissed[userDept] && 
                          status.deptAdminsDismissed[userDept][String(userId)];
-    shouldNotify = isUrgent && !status.adminApproved && !deptDismissed;
+    shouldNotify = !isUrgent && !deptDismissed;
+    notifyLevel = 'warning';
+  } else if (userRole === 'admin') {
+    // 系统管理员：仅紧急阶段（<2GB）最后通知，全局兜底
+    shouldNotify = isUrgent && !status.adminApproved;
     notifyLevel = 'urgent';
   }
   
@@ -1942,6 +2137,18 @@ app.post('/api/admin/cleanup-images/execute', authMiddleware, requireRole('admin
     trueOrphanCount: result.trueOrphanCount,
     scope: 'all',
   });
+});
+
+// 历史文件归属回填（仅系统管理员，dry-run 预览 / 实际执行）
+// 依据数据库引用为上线前上传、无归属记录的历史文件自动补写归属部门
+app.get('/api/admin/cleanup/backfill-ownership/dry-run', authMiddleware, requireRole('admin'), (req, res) => {
+  const r = backfillUploadOwnership({ dryRun: true });
+  res.json({ dryRun: true, ...r });
+});
+
+app.post('/api/admin/cleanup/backfill-ownership', authMiddleware, requireRole('admin'), (req, res) => {
+  const r = backfillUploadOwnership({ dryRun: false });
+  res.json({ success: true, ...r });
 });
 
 // 部门管理员手动清理（仅限本部门）
