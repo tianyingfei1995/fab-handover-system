@@ -2253,6 +2253,13 @@ async function batchUpdateProcessStatus() {
   }
   const ids = [...selectedMachineIds];
 
+  // 移入归档（临时隐藏，可在归档管理中撤销）
+  if (newStatus === 'archive') {
+    document.getElementById('batchProcessStatus').value = '';
+    batchArchiveSelected('machine');
+    return;
+  }
+
   // 删除选中记录（软删除，可撤销）
   if (newStatus === 'delete') {
     if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？`)) return;
@@ -3046,6 +3053,13 @@ async function batchUpdateLtProcessStatus() {
   const newStatus = document.getElementById('ltBatchProcessStatus').value;
   if (!newStatus) { showToast('请选择操作类型', 'error'); return; }
   const ids = [...selectedLtMachineIds];
+
+  // 移入归档（临时隐藏，可在归档管理中撤销）
+  if (newStatus === 'archive') {
+    document.getElementById('ltBatchProcessStatus').value = '';
+    batchArchiveSelected('lt-machine');
+    return;
+  }
 
   if (newStatus === 'delete') {
     if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？`)) return;

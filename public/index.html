@@ -320,13 +320,13 @@
           <span class="batch-count" id="batchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
-          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('machine')" title="归档选中的机台（临时隐藏，可撤销）">归档选中</button>
           <select id="batchProcessStatus" class="filter-select">
             <option value="">-- 批量修改处理状态 --</option>
             <option value="pending">待处理</option>
             <option value="in_progress">处理中</option>
             <option value="resolved">已解决</option>
             <option value="closed">已关闭</option>
+            <option value="archive" style="color: #1e50e0; font-weight: 600;">— 移入归档（临时隐藏） —</option>
             <option value="delete" style="color: #ef4444; font-weight: 600;">— 删除选中记录 —</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="batchUpdateProcessStatus()">
@@ -419,13 +419,13 @@
           <span class="batch-count" id="ltBatchCount">已选 0 项</span>
         </div>
         <div class="batch-bar-right">
-          <button class="btn btn-primary btn-sm" onclick="batchArchiveSelected('lt-machine')" title="归档选中的机台（临时隐藏，可撤销）">归档选中</button>
           <select id="ltBatchProcessStatus" class="filter-select">
             <option value="">-- 批量修改处理状态 --</option>
             <option value="pending">待处理</option>
             <option value="in_progress">处理中</option>
             <option value="resolved">已解决</option>
             <option value="closed">已关闭</option>
+            <option value="archive" style="color: #1e50e0; font-weight: 600;">— 移入归档（临时隐藏） —</option>
             <option value="delete" style="color: #ef4444; font-weight: 600;">— 删除选中记录 —</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="batchUpdateLtProcessStatus()">
