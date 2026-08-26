@@ -1581,7 +1581,9 @@ input[type="checkbox"] {
   width: 4px; height: 16px; border-radius: 2px;
   background: linear-gradient(180deg, var(--accent-red), var(--accent-orange));
 }
-.alerts-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.alerts-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.alerts-list::-webkit-scrollbar { width: 5px; }
+.alerts-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
 .alert-item {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 14px;

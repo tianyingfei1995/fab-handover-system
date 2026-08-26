@@ -2044,6 +2044,9 @@ function renderLotSummary() {
 function renderAlerts() {
   const alertList = document.getElementById('alertList');
   const highPriority = dailyHandovers.filter(h => h.priority === 'high' && h.status !== 'closed');
+  // 标题旁显示计数徽标，与 LOT 概览风格一致
+  const countEl = document.getElementById('alertCount');
+  if (countEl) countEl.textContent = highPriority.length;
   if (highPriority.length === 0) {
     alertList.innerHTML = '<div class="empty-state">暂无高优先级事项</div>';
     return;
