@@ -1645,9 +1645,7 @@ app.get('/api/export/excel', authMiddleware, async (req, res) => {
     wb.creator = 'FAB 生产日常交接系统';
 
     for (const mod of EXPORT_MODULES) {
-      const hasDept = mod.table !== 'ar_handovers'; // AR 表无部门字段
-      const sql = hasDept ? `${mod.sql}${deptWhere(req)} ORDER BY id DESC` : `${mod.sql} ORDER BY id DESC`;
-      const rows = db.prepare(sql).all(...(hasDept ? deptParam(req) : []));
+      const rows = db.prepare(`${mod.sql}${deptWhere(req)} ORDER BY id DESC`).all(...deptParam(req));
 
       // 先算出图片列总数（决定表头宽度）
       const imgCounts = rows.map(r => mod.images(r).length);
