@@ -947,7 +947,7 @@ F："></div>
                 </button>
                 <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('machineFileInput').click()">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
-                  选择文件（可多选）
+                  选择图片（可多选）
                 </button>
                 <input type="file" id="machineFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
                 <span class="image-count-badge" id="imageCountBadge" style="display:none;">0 张</span>
@@ -1100,7 +1100,7 @@ F："></div>
                 </button>
                 <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('ltMachineFileInput').click()">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
-                  选择文件（可多选）
+                  选择图片（可多选）
                 </button>
                 <input type="file" id="ltMachineFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
                 <span class="image-count-badge" id="ltImageCountBadge" style="display:none;">0 张</span>
@@ -1209,8 +1209,8 @@ F："></div>
             </select>
           </div>
           <div class="form-group">
-            <label>创建人</label>
-            <input type="text" id="dhCreatedBy" placeholder="创建人姓名">
+            <label>创建人 <span class="upload-badge">自动获取</span></label>
+            <input type="text" id="dhCreatedBy" value="" readonly>
           </div>
           <div class="form-group">
             <label>截止日期</label>
@@ -1251,7 +1251,7 @@ F："></div>
                 </button>
                 <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('dhFileInput').click()">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
-                  选择文件（可多选）
+                  选择图片（可多选）
                 </button>
                 <input type="file" id="dhFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
                 <span class="image-count-badge" id="dhImageCountBadge" style="display:none;">0 张</span>
@@ -1379,7 +1379,7 @@ F："></div>
                 </button>
                 <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('lotHFileInput').click()">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
-                  选择文件（可多选）
+                  选择图片（可多选）
                 </button>
                 <input type="file" id="lotHFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
                 <span class="image-count-badge" id="lotHImageCountBadge" style="display:none;">0 张</span>
@@ -1646,7 +1646,7 @@ F："></div>
                 </button>
                 <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('dutyIssueFileInput').click()">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
-                  选择文件（可多选）
+                  选择图片（可多选）
                 </button>
                 <input type="file" id="dutyIssueFileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
                 <span class="image-count-badge" id="diImageCountBadge" style="display:none;">0 张</span>

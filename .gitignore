@@ -17,4 +17,7 @@ data/*
 
 # 系统文件
 .DS_Store
-Thumbs.dbfab_handover.db
+Thumbs.db
+
+# 运行时数据库（含交接数据，不入库）
+fab_handover.db

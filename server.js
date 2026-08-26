@@ -1286,7 +1286,8 @@ registerCrudRoutes({
   table: 'daily_handovers',
   module: 'daily-handover',
   fields: ['title', 'content', 'priority', 'category', 'status', 'created_by', 'due_date', 'image_path', 'attachments'],
-  hasBatchStatus: false
+  hasBatchStatus: false,
+  hasCreatedBy: true
 });
 
 // AR 交接
@@ -1523,11 +1524,9 @@ function scanUploadDir(dir = UPLOAD_DIR, baseDir = UPLOAD_DIR) {
     if (entry.isDirectory()) {
       files.push(...scanUploadDir(fullPath, baseDir));
     } else if (entry.isFile()) {
-      // 只处理图片格式
-      if (/\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(entry.name)) {
-        const relPath = path.relative(baseDir, fullPath).split(path.sep).join('/');
-        files.push({ relPath, fullPath });
-      }
+      // 扫描全部上传文件（图片 + 附件），保证磁盘告警时的清理能同时覆盖附件
+      const relPath = path.relative(baseDir, fullPath).split(path.sep).join('/');
+      files.push({ relPath, fullPath });
     }
   }
   return files;

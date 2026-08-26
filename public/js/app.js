@@ -4640,7 +4640,7 @@ function openDailyHandoverModal() {
   document.getElementById('dhPriority').value = 'medium';
   document.getElementById('dhCategory').value = 'other';
   document.getElementById('dhStatus').value = 'open';
-  document.getElementById('dhCreatedBy').value = '';
+  document.getElementById('dhCreatedBy').value = (currentUser && currentUser.name) ? currentUser.name : '';
   document.getElementById('dhDueDate').value = '';
   imageContext = 'dailyHandover';
   attachContext = 'dailyHandover';
