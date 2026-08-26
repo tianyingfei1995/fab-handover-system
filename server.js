@@ -1530,12 +1530,17 @@ function exportStripHtml(str) {
     .trim();
 }
 
-// 解析附件 JSON 为文件名列表
-function exportAttachNames(str) {
+// 解析附件 JSON 为 {name, path} 列表
+function exportAttachList(str) {
   try {
     const arr = JSON.parse(str || '[]');
-    return Array.isArray(arr) ? arr.map(a => a.name).filter(Boolean).join('、') : '';
-  } catch (e) { return ''; }
+    return Array.isArray(arr) ? arr.filter(a => a && a.path) : [];
+  } catch (e) { return []; }
+}
+
+// 附件单元格占位标记：写入时替换为超链接（文本=附件名，链接=服务器文件地址）
+function exportAttachCell(r) {
+  return { __attach__: exportAttachList(r.attachments) };
 }
 
 // 各模块导出配置：sheet 名、SQL、行数据构造（返回普通单元格值数组 + 图片路径列表）
@@ -1547,7 +1552,7 @@ const EXPORT_MODULES = [
     row: r => [
       r.id, r.machine_id, r.machine_name, EXPORT_STATUS_MAP.machine[r.status] || r.status || '', r.area, r.process,
       EXPORT_STATUS_MAP.processStatus[r.process_status] || r.process_status || '', r.shift, r.owner,
-      exportStripHtml(r.alarm_info), exportStripHtml(r.remark), exportAttachNames(r.attachments), r.created_at, r.updated_at
+      exportStripHtml(r.alarm_info), exportStripHtml(r.remark), exportAttachCell(r), r.created_at, r.updated_at
     ],
     images: r => String(r.image_path || '').split(',').map(p => p.trim()).filter(Boolean)
   },
@@ -1558,7 +1563,7 @@ const EXPORT_MODULES = [
     row: r => [
       r.id, r.machine_id, r.machine_name, EXPORT_STATUS_MAP.machine[r.status] || r.status || '', r.area, r.process,
       EXPORT_STATUS_MAP.processStatus[r.process_status] || r.process_status || '', r.shift, r.owner,
-      exportStripHtml(r.alarm_info), exportStripHtml(r.remark), exportAttachNames(r.attachments), r.created_at, r.updated_at
+      exportStripHtml(r.alarm_info), exportStripHtml(r.remark), exportAttachCell(r), r.created_at, r.updated_at
     ],
     images: r => String(r.image_path || '').split(',').map(p => p.trim()).filter(Boolean)
   },
@@ -1570,7 +1575,7 @@ const EXPORT_MODULES = [
       r.id, exportStripHtml(r.title), exportStripHtml(r.content),
       EXPORT_STATUS_MAP.priority[r.priority] || r.priority || '', EXPORT_STATUS_MAP.category[r.category] || r.category || '',
       EXPORT_STATUS_MAP.handover[r.status] || r.status || '', r.created_by, r.due_date,
-      exportAttachNames(r.attachments), r.created_at, r.updated_at
+      exportAttachCell(r), r.created_at, r.updated_at
     ],
     images: r => String(r.image_path || '').split(',').map(p => p.trim()).filter(Boolean)
   },
@@ -1581,7 +1586,7 @@ const EXPORT_MODULES = [
     row: r => [
       r.id, r.lot_id, EXPORT_STATUS_MAP.handover[r.status] || r.status || '',
       exportStripHtml(r.detail), exportStripHtml(r.comment), exportStripHtml(r.follow_up),
-      r.created_by, exportAttachNames(r.attachments), r.created_at, r.updated_at
+      r.created_by, exportAttachCell(r), r.created_at, r.updated_at
     ],
     images: r => String(r.follow_up_images || '').split(',').map(p => p.trim()).filter(Boolean)
   },
@@ -1606,7 +1611,7 @@ const EXPORT_MODULES = [
       r.id, exportStripHtml(r.category1), exportStripHtml(r.category2),
       exportStripHtml(r.problem_process), exportStripHtml(r.solution),
       EXPORT_STATUS_MAP.confirm[r.owner_confirm] || exportStripHtml(r.owner_confirm) || '',
-      exportAttachNames(r.attachments), r.created_at, r.updated_at
+      exportAttachCell(r), r.created_at, r.updated_at
     ],
     images: r => String(r.image_path || '').split(',').map(p => p.trim()).filter(Boolean)
   },
@@ -1635,13 +1640,16 @@ app.get('/api/export/excel', authMiddleware, async (req, res) => {
     for (const mod of EXPORT_MODULES) {
       const rows = db.prepare(`${mod.sql}${deptWhere(req)} ORDER BY id DESC`).all(...deptParam(req));
 
-      // 先算出图片列总数（决定表头宽度）
+      // 先算出图片列/附件列总数（决定表头宽度）
       const imgCounts = rows.map(r => mod.images(r).length);
       const maxImgs = Math.max(0, ...imgCounts);
+      const attachCounts = rows.map(r => Math.max(0, exportAttachList(r.attachments).length - 1)); // 首个附件在「附件」列内
+      const maxExtraAttachs = Math.max(0, ...attachCounts);
       const ws = wb.addWorksheet(mod.sheet, { views: [{ state: 'frozen', ySplit: 1 }] });
 
       const headers = [...mod.columns];
       for (let i = 1; i <= maxImgs; i++) headers.push(`图片${i}`);
+      for (let i = 1; i <= maxExtraAttachs; i++) headers.push(`附件${i + 1}`);
       const headerRow = ws.addRow(headers);
       headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       headerRow.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }; c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }; });
@@ -1652,10 +1660,33 @@ app.get('/api/export/excel', authMiddleware, async (req, res) => {
         const row = ws.addRow(mod.row(r));
         row.alignment = { vertical: 'middle', wrapText: true };
 
+        // 图片列：一图一列超链接
         imgPaths.forEach((p, pi) => {
           const cell = row.getCell(mod.columns.length + pi + 1); // 1 基列号
           cell.value = { text: `图片${pi + 1}`, hyperlink: `http://${host}${p}` };
           cell.font = { color: { argb: 'FF0563C1' }, underline: true };
+        });
+
+        // 附件列：占位标记替换为超链接单元格（文本=附件名，点击下载服务器文件）
+        row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+          if (cell.value && typeof cell.value === 'object' && cell.value.__attach__) {
+            const list = cell.value.__attach__;
+            if (list.length === 0) { cell.value = ''; return; }
+            if (list.length === 1) {
+              cell.value = { text: list[0].name || '附件', hyperlink: `http://${host}${list[0].path}` };
+            } else {
+              // 多附件：ExcelJS 单元格仅支持一个超链接，文本列出全部附件名，链接指向首个附件；
+              // 其余附件依次追加在图片列之后（附件2、附件3...列），每个都可独立点击
+              cell.value = { text: list.map(a => a.name || '附件').join('\n'), hyperlink: `http://${host}${list[0].path}` };
+              list.slice(1).forEach((a, ai) => {
+                const ac = ws.getRow(ri + 2).getCell(mod.columns.length + maxImgs + 1 + ai);
+                ac.value = { text: a.name || `附件${ai + 2}`, hyperlink: `http://${host}${a.path}` };
+                ac.font = { color: { argb: 'FF0563C1' }, underline: true };
+                ac.alignment = { vertical: 'middle', wrapText: true };
+              });
+            }
+            cell.font = { color: { argb: 'FF0563C1' }, underline: true };
+          }
         });
       });
       if (rows.length === 0) ws.addRow(['（暂无数据）']);
