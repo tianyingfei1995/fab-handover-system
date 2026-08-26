@@ -17,6 +17,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const ExcelJS = require('exceljs');
+const sharp = require('sharp');
 
 const Database = require('better-sqlite3');
 
@@ -505,10 +506,13 @@ app.use(express.json({ limit: '4mb' }));
 app.use(express.urlencoded({ extended: true, limit: '4mb' }));
 
 // 静态文件
-// 开发期优化：静态资源不缓存，避免前端修改后浏览器仍加载旧版本（须置于 express.static 之前生效）
+// css/js 允许缓存但强制再校验（ETag 命中返回 304，节省带宽且改版后立即生效）；
+// uploads 文件名唯一不可变，可长缓存；index.html 不缓存
 app.use((req, res, next) => {
   if (req.path.startsWith('/css/') || req.path.startsWith('/js/') || req.path.startsWith('/lib/')) {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  } else if (req.path.startsWith('/uploads/')) {
+    res.setHeader('Cache-Control', 'public, max-age=2592000'); // 30天
   }
   next();
 });
@@ -1374,6 +1378,28 @@ app.post(`${basePath}/upload`, authMiddleware, checkModulePermission(module, 'ed
       if (origExt.toLowerCase() !== safeExt) {
         finalName = path.basename(finalName, origExt) + safeExt;
         fs.renameSync(f.path, path.join(path.dirname(f.path), finalName));
+      }
+      const finalPath = path.join(path.dirname(f.path), finalName);
+
+      // 压缩：gif（可能含动画）保留原样；其余统一转为 jpeg（限最长边1600、质量82）
+      // 显著减小体积，提升列表加载与导出速度
+      if (realType !== 'gif') {
+        try {
+          const compressed = await sharp(finalPath)
+            .rotate() // 按 EXIF 方向自动摆正
+            .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+            .flatten({ background: '#ffffff' }) // PNG 透明区域填白
+            .jpeg({ quality: 82, mozjpeg: true })
+            .toBuffer();
+          const jpgName = path.basename(finalName, path.extname(finalName)) + '.jpg';
+          const jpgPath = path.join(path.dirname(finalPath), jpgName);
+          fs.writeFileSync(jpgPath, compressed);
+          fs.unlinkSync(finalPath);
+          finalName = jpgName;
+        } catch (e) {
+          // 压缩失败则保留原图，不阻断上传
+          console.warn('sharp 压缩失败，保留原图:', finalPath, e.message);
+        }
       }
       saved.push(`/uploads/${path.basename(path.dirname(f.path))}/${finalName}`);
     }

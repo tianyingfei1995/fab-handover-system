@@ -2127,3 +2127,57 @@ input[type="checkbox"] {
   .si-field-loc, .si-field-host { width: 100%; max-width: 100%; }
   .si-meta { flex-direction: column; align-items: stretch; }
 }
+
+/* ─── 长文本列宽度约束（机台信息/备注），避免挤占其他列 ─── */
+.td-alarm, .td-remark { min-width: 220px; max-width: 340px; }
+
+/* ─── 分批渲染"加载更多" ─── */
+.batch-more-row td { text-align: center; padding: 10px 12px; }
+.batch-more-btn {
+  padding: 6px 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  transition: border-color 0.2s, color 0.2s;
+}
+.batch-more-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.batch-more-btn:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+/* 卡片网格中的加载更多：独占一行居中 */
+.handover-grid .batch-more-row { grid-column: 1 / -1; text-align: center; }
+
+/* ─── 筛选状态指示 ─── */
+/* 重置按钮上的激活筛选数角标 */
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: var(--accent-blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+/* 空状态中的"清除筛选"链接 */
+.clear-filter-link {
+  color: var(--accent-blue);
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+.clear-filter-link:hover { text-decoration: none; }
+
+/* ─── 多选下拉键盘可达性 ─── */
+.ms-option:focus {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: -2px;
+  background: var(--bg-hover);
+}

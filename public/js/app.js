@@ -93,6 +93,74 @@ function escapeAttr(str) {
   return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// ===== 列表分批渲染（懒加载） =====
+// 大数据量列表首批只渲染 BATCH_FIRST 行，滚动到底部或点击"加载更多"再追加，
+// 避免一次性渲染上千行导致的页面卡顿
+const BATCH_FIRST = 50;
+const BATCH_STEP = 100;
+const _batchCtx = new WeakMap(); // 容器 -> { items, rowHtml, shown, colspan, isTable }
+const _batchObserver = new IntersectionObserver((entries) => {
+  for (const en of entries) {
+    if (en.isIntersecting && en.target.isConnected) _batchAppend(en.target);
+  }
+}, { rootMargin: '300px' });
+
+function _batchMoreHtml(shown, total, colspan, isTable) {
+  const label = `加载更多（已显示 ${shown}/${total} 条）`;
+  if (isTable) {
+    return `<tr class="batch-more-row"><td colspan="${colspan}"><button type="button" class="batch-more-btn" onclick="_batchAppend(this.closest('tr'))">${label}</button></td></tr>`;
+  }
+  return `<div class="batch-more-row"><button type="button" class="batch-more-btn" onclick="_batchAppend(this.parentElement)">${label}</button></div>`;
+}
+
+// 容器被（重新）渲染前调用：释放旧的观察目标，防止内存泄漏
+function _batchTeardown(container) {
+  const old = container.querySelector('.batch-more-row');
+  if (old) _batchObserver.unobserve(old);
+}
+
+function renderBatchedRows(container, items, rowHtml, options) {
+  if (!container || !items.length) return;
+  options = options || {};
+  _batchTeardown(container);
+  const isTable = container.tagName === 'TBODY';
+  const colspan = options.colspan || 1;
+  const shown = Math.min(BATCH_FIRST, items.length);
+  let html = '';
+  for (let i = 0; i < shown; i++) html += rowHtml(items[i], i);
+  if (shown < items.length) html += _batchMoreHtml(shown, items.length, colspan, isTable);
+  container.innerHTML = html;
+  _batchCtx.set(container, { items, rowHtml, shown, colspan, isTable });
+  const moreRow = container.querySelector('.batch-more-row');
+  if (moreRow) _batchObserver.observe(moreRow);
+}
+
+function _batchAppend(el) {
+  const container = el.tagName === 'TBODY' ? el : (el.closest('tbody') || el.parentElement);
+  if (!container) return;
+  const ctx = _batchCtx.get(container);
+  if (!ctx) return;
+  const { items, rowHtml, shown: prev, colspan, isTable } = ctx;
+  const next = Math.min(prev + BATCH_STEP, items.length);
+  let html = '';
+  for (let i = prev; i < next; i++) html += rowHtml(items[i], i);
+  const moreRow = container.querySelector('.batch-more-row');
+  if (moreRow) {
+    if (next >= items.length) {
+      _batchObserver.unobserve(moreRow);
+      moreRow.remove();
+      container.insertAdjacentHTML('beforeend', html);
+    } else {
+      moreRow.insertAdjacentHTML('beforebegin', html);
+      const btn = moreRow.querySelector('.batch-more-btn');
+      if (btn) btn.textContent = `加载更多（已显示 ${next}/${items.length} 条）`;
+    }
+  } else {
+    container.insertAdjacentHTML('beforeend', html);
+  }
+  ctx.shown = next;
+}
+
 // 用于富文本字段（来自富文本编辑器），剥离危险标签/协议并保留安全格式
 function sanitizeHtml(html) {
   if (!html) return '';
@@ -2372,11 +2440,11 @@ function renderMachineTable() {
   filtered = applyMachineSort(filtered);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">暂无机台数据，点击"新增机台"添加</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">暂无机台数据，点击"新增机台"添加${filterResetLinkHtml('resetMachineFilters')}</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = filtered.map(m => `
+  renderBatchedRows(tbody, filtered, m => `
     <tr class="clickable-row${m.process_status === 'closed' ? ' row-closed' : ''}${selectedMachineIds.has(m.id) ? ' row-selected' : ''}" onclick="showMachineDetail(${m.id})">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedMachineIds.has(m.id) ? 'checked' : ''} onchange="toggleMachineSelect(${m.id}, this.checked)"></td>
       <td><strong>${escapeHtml(m.machine_name)}</strong></td>
@@ -2398,7 +2466,7 @@ function renderMachineTable() {
         ${actionButtonsHtml('machine', m.id, 'editMachine', 'deleteMachine')}
       </td>
     </tr>
-  `).join('');
+  `, { colspan: 10 });
   updateBatchCount();
 }
 
@@ -2773,12 +2841,12 @@ function renderArHandoverTable() {
   filtered = applyArSort(filtered);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty-state">暂无AR交接数据，点击"新增AR"添加</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-state">暂无AR交接数据，点击"新增AR"添加${filterResetLinkHtml('resetArHandoverFilters')}</td></tr>`;
     updateArBatchCount();
     return;
   }
 
-  tbody.innerHTML = filtered.map((a, i) => `
+  renderBatchedRows(tbody, filtered, (a, i) => `
     <tr class="clickable-row${a.status === 'closed' ? ' row-closed' : ''}${selectedArIds.has(a.id) ? ' row-selected' : ''}" onclick="showArHandoverDetail(${a.id})">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedArIds.has(a.id) ? 'checked' : ''} onchange="toggleArSelect(${a.id}, this.checked)"></td>
       <td style="text-align:center;"><strong>${i + 1}</strong></td>
@@ -2792,7 +2860,7 @@ function renderArHandoverTable() {
         ${actionButtonsHtml('ar-handover', a.id, 'editArHandover', 'deleteArHandover')}
       </td>
     </tr>
-  `).join('');
+  `, { colspan: 9 });
   updateArBatchCount();
 }
 
@@ -3160,11 +3228,11 @@ function renderLtMachineTable() {
   filtered = applyLtMachineSort(filtered);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">暂无机台数据，点击"新增机台"添加</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">暂无机台数据，点击"新增机台"添加${filterResetLinkHtml('resetLtMachineFilters')}</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = filtered.map(m => `
+  renderBatchedRows(tbody, filtered, m => `
     <tr class="clickable-row${m.process_status === 'closed' ? ' row-closed' : ''}${selectedLtMachineIds.has(m.id) ? ' row-selected' : ''}" onclick="showLtMachineDetail(${m.id})">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedLtMachineIds.has(m.id) ? 'checked' : ''} onchange="toggleLtMachineSelect(${m.id}, this.checked)"></td>
       <td><strong>${escapeHtml(m.machine_name)}</strong></td>
@@ -3186,7 +3254,7 @@ function renderLtMachineTable() {
         ${actionButtonsHtml('lt-machine', m.id, 'editLtMachine', 'deleteLtMachine')}
       </td>
     </tr>
-  `).join('');
+  `, { colspan: 10 });
   updateLtBatchCount();
 }
 
@@ -3530,12 +3598,12 @@ function renderLotHandoverTable() {
   filtered = applyLotHSort(filtered);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">暂无LOT交接数据，点击"新增交接"添加</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">暂无LOT交接数据，点击"新增交接"添加${filterResetLinkHtml('resetLotHandoverFilters')}</td></tr>`;
     updateLotHBatchCount();
     return;
   }
 
-  tbody.innerHTML = filtered.map(h => {
+  renderBatchedRows(tbody, filtered, h => {
     const imgs = parseImagePaths(h.follow_up_images);
     const imgBadge = imgs.length > 0
       ? `<span class="img-count-pill" title="${imgs.length}张图片">📷 ${imgs.length}</span>`
@@ -3555,7 +3623,7 @@ function renderLotHandoverTable() {
         ${actionButtonsHtml('lot-handover', h.id, 'editLotHandover', 'deleteLotHandover')}
       </td>
     </tr>`;
-  }).join('');
+  }, { colspan: 8 });
   updateLotHBatchCount();
 }
 
@@ -3893,12 +3961,12 @@ function renderSignInTable() {
   filtered = applySignInSort(filtered);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">暂无签到表数据，点击"新增签到表"添加</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">暂无签到表数据，点击"新增签到表"添加${filterResetLinkHtml('resetSignInFilters')}</td></tr>`;
     updateSignInBatchCount();
     return;
   }
 
-  tbody.innerHTML = filtered.map(s => {
+  renderBatchedRows(tbody, filtered, s => {
     const attendees = parseAttendees(s.attendees);
     const count = attendees.length;
     const summary = summarizeAttendees(attendees);
@@ -3914,7 +3982,7 @@ function renderSignInTable() {
         ${actionButtonsHtml('sign-in', s.id, 'editSignInSheet', 'deleteSignInSheet')}
       </td>
     </tr>`;
-  }).join('');
+  }, { colspan: 7 });
   updateSignInBatchCount();
 }
 
@@ -4382,12 +4450,12 @@ function renderDutyIssueTable() {
   filtered = applyDiSort(filtered);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty-state">暂无值班问题数据，点击"新增问题"添加</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-state">暂无值班问题数据，点击"新增问题"添加${filterResetLinkHtml('resetDutyIssueFilters')}</td></tr>`;
     updateDiBatchCount();
     return;
   }
 
-  tbody.innerHTML = filtered.map((d, i) => `
+  renderBatchedRows(tbody, filtered, (d, i) => `
     <tr class="clickable-row${selectedDiIds.has(d.id) ? ' row-selected' : ''}" onclick="showDutyIssueDetail(${d.id})">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedDiIds.has(d.id) ? 'checked' : ''} onchange="toggleDiSelect(${d.id}, this.checked)"></td>
       <td style="text-align:center;"><strong>${i + 1}</strong></td>
@@ -4408,7 +4476,7 @@ function renderDutyIssueTable() {
         ${actionButtonsHtml('duty-issue', d.id, 'editDutyIssue', 'deleteDutyIssue')}
       </td>
     </tr>
-  `).join('');
+  `, { colspan: 9 });
   updateDiBatchCount();
 }
 
@@ -4730,11 +4798,11 @@ function renderDailyHandoverCards() {
   });
 
   if (filtered.length === 0) {
-    grid.innerHTML = '<div class="empty-state">暂无其他交接事项，点击"新增交接"添加</div>';
+    grid.innerHTML = `<div class="empty-state">暂无其他交接事项，点击"新增交接"添加${filterResetLinkHtml('resetDailyHandoverFilters')}</div>`;
     return;
   }
 
-  grid.innerHTML = filtered.map(h => {
+  renderBatchedRows(grid, filtered, h => {
     const imgs = parseImagePaths(h.image_path);
     const imageHtml = imgs.length > 0
       ? `<div class="handover-card-images">
@@ -4765,7 +4833,7 @@ function renderDailyHandoverCards() {
         </div>
       </div>
     </div>
-  `}).join('');
+  `});
 }
 
 // 其他交接详情弹窗
@@ -5225,14 +5293,14 @@ function renderMultiSelect(id) {
   const btnLabel = st.selected.size === 0 ? st.placeholder
     : (st.selected.size === 1 ? [...st.selected][0] : `已选 ${st.selected.size} 项`);
   host.innerHTML = `
-    <button type="button" class="filter-select ms-toggle" onclick="event.stopPropagation(); toggleMsPanel('${id}')" title="按日期+班次筛选（可多选）">${escapeHtml(btnLabel)} <span class="ms-caret">▾</span></button>
-    <div class="ms-panel"${st.open ? ' style="display:block"' : ''}>
+    <button type="button" class="filter-select ms-toggle" onclick="event.stopPropagation(); toggleMsPanel('${id}')" title="按日期+班次筛选（可多选）" aria-haspopup="listbox" aria-expanded="${st.open}">${escapeHtml(btnLabel)} <span class="ms-caret">▾</span></button>
+    <div class="ms-panel" role="listbox" aria-multiselectable="true" aria-label="班次多选列表"${st.open ? ' style="display:block"' : ''}>
       <div class="ms-actions">
         <a onclick="event.stopPropagation(); msSelectAll('${id}', true)">全选</a>
         <a onclick="event.stopPropagation(); msSelectAll('${id}', false)">清空</a>
       </div>
       <div class="ms-list">${vals.map(v => `
-        <label class="ms-option" onclick="event.stopPropagation()">
+        <label class="ms-option" role="option" tabindex="-1" aria-selected="${st.selected.has(v)}" onclick="event.stopPropagation()">
           <input type="checkbox" value="${escapeAttr(v)}" ${st.selected.has(v) ? 'checked' : ''} onchange="msToggle('${id}', this.value, this.checked)">
           <span>${escapeHtml(v)}</span>
         </label>`).join('') || '<div class="ms-empty">暂无班次数据</div>'}
@@ -5267,6 +5335,107 @@ function msClear(id) {
   st.selected.clear();
   renderMultiSelect(id);
 }
+
+// ===== 筛选状态指示：重置按钮角标 + 空状态"清除筛选"链接 =====
+// 每个模块的筛选元素清单（ids 为 input/select/date，ms 为多选下拉）
+const FILTER_BADGE_CONF = [
+  { reset: 'resetMachineFilters',        ids: ['machineSearch', 'machineStatusFilter', 'machineProcessStatusFilter'], ms: ['machineShiftMs'] },
+  { reset: 'resetLtMachineFilters',      ids: ['ltMachineSearch', 'ltMachineStatusFilter', 'ltMachineProcessStatusFilter'], ms: ['ltMachineShiftMs'] },
+  { reset: 'resetLotHandoverFilters',    ids: ['lotHandoverSearch', 'lotHandoverStatusFilter', 'lotHandoverCreatedByFilter', 'lotHandoverDateFilter'] },
+  { reset: 'resetSignInFilters',         ids: ['signInSearch', 'signInHostFilter'], ms: ['signInShiftMs'] },
+  { reset: 'resetDutyIssueFilters',      ids: ['dutyIssueSearch', 'dutyIssueConfirmFilter', 'dutyIssueDateFilter'] },
+  { reset: 'resetArHandoverFilters',     ids: ['arHandoverSearch', 'arHandoverStatusFilter', 'arHandoverOwnerFilter'] },
+  { reset: 'resetDailyHandoverFilters',  ids: ['dailyHandoverSearch', 'dailyHandoverPriorityFilter', 'dailyHandoverStatusFilter', 'dailyHandoverCategoryFilter', 'dailyHandoverCreatedByFilter'] },
+];
+
+function _activeFilterCount(conf) {
+  let n = 0;
+  (conf.ids || []).forEach(id => {
+    const el = document.getElementById(id);
+    if (el && (el.value || '').trim()) n++;
+  });
+  (conf.ms || []).forEach(id => { if (msSelected(id).size > 0) n++; });
+  return n;
+}
+
+// 在对应重置按钮上显示当前激活的筛选数量角标
+function updateFilterBadges() {
+  for (const conf of FILTER_BADGE_CONF) {
+    const btn = document.querySelector(`.btn-reset[onclick="${conf.reset}()"]`);
+    if (!btn) continue;
+    const n = _activeFilterCount(conf);
+    let badge = btn.querySelector('.filter-badge');
+    if (n > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'filter-badge';
+        btn.appendChild(badge);
+      }
+      badge.textContent = n;
+      btn.title = `当前有 ${n} 项筛选生效，点击重置`;
+    } else {
+      if (badge) badge.remove();
+      btn.title = '重置筛选条件';
+    }
+  }
+}
+
+// 空状态下若筛选生效，显示"清除筛选"链接
+function filterResetLinkHtml(resetFn) {
+  const conf = FILTER_BADGE_CONF.find(c => c.reset === resetFn);
+  if (conf && _activeFilterCount(conf) > 0) {
+    return ` <a href="javascript:void(0)" class="clear-filter-link" onclick="event.stopPropagation(); ${resetFn}()">清除筛选</a>`;
+  }
+  return '';
+}
+
+// 任意筛选输入变化后刷新角标（search=input 事件，select/多选=change 事件）
+document.addEventListener('input', updateFilterBadges);
+document.addEventListener('change', updateFilterBadges);
+
+// ===== ESC 逐层关闭：多选面板 → 最上层弹窗（灯箱由专属逻辑处理） =====
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  // 先关闭所有打开的多选面板
+  let closedPanel = false;
+  for (const id in _msState) {
+    if (_msState[id] && _msState[id].open) { _msState[id].open = false; renderMultiSelect(id); closedPanel = true; }
+  }
+  if (closedPanel) return;
+  // 灯箱激活时由专属 handler 处理，避免误关下层弹窗
+  const lb = document.getElementById('imageLightbox');
+  if (lb && lb.classList.contains('active')) return;
+  // 关闭最上层弹窗（后打开的在 DOM 末尾）
+  const modals = document.querySelectorAll('.modal-overlay.active');
+  if (modals.length > 0) modals[modals.length - 1].classList.remove('active');
+});
+
+// ===== 多选下拉键盘导航（↑↓ 移动焦点，Enter/空格 切换勾选） =====
+document.addEventListener('keydown', (e) => {
+  if (!e.target || !e.target.closest) return;
+  const dd = e.target.closest('.ms-dropdown');
+  if (!dd) return;
+  const st = _msState[dd.id];
+  if (!st) return;
+  if (e.key === 'Escape' && st.open) { st.open = false; renderMultiSelect(dd.id); e.preventDefault(); return; }
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') {
+    if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && document.activeElement.classList.contains('ms-option')) {
+      e.preventDefault();
+      const cb = document.activeElement.querySelector('input[type="checkbox"]');
+      if (cb) { cb.checked = !cb.checked; msToggle(dd.id, cb.value, cb.checked); }
+    }
+    return;
+  }
+  e.preventDefault();
+  if (!st.open) { st.open = true; renderMultiSelect(dd.id); }
+  const opts = [...dd.querySelectorAll('.ms-option')];
+  if (!opts.length) return;
+  const idx = opts.findIndex(o => o.contains(document.activeElement));
+  const next = e.key === 'ArrowDown'
+    ? (idx === -1 ? 0 : Math.min(idx + 1, opts.length - 1))
+    : (idx === -1 ? opts.length - 1 : Math.max(idx - 1, 0));
+  opts[next].focus();
+});
 
 // ===== 归档功能（临时隐藏记录，可在归档管理中撤销归档） =====
 
@@ -5666,6 +5835,7 @@ function resetMachineFilters() {
   msClear('machineShiftMs');
   _cachedFilteredMachineIds = null;
   renderMachineTable();
+  updateFilterBadges();
 }
 function resetLtMachineFilters() {
   document.getElementById('ltMachineSearch').value = '';
@@ -5674,6 +5844,7 @@ function resetLtMachineFilters() {
   msClear('ltMachineShiftMs');
   _cachedLtFilteredMachineIds = null;
   renderLtMachineTable();
+  updateFilterBadges();
 }
 function resetLotHandoverFilters() {
   document.getElementById('lotHandoverSearch').value = '';
@@ -5684,6 +5855,7 @@ function resetLotHandoverFilters() {
   const df = document.getElementById('lotHandoverDateFilter');
   if (df) df.value = '';
   renderLotHandoverTable();
+  updateFilterBadges();
 }
 function resetSignInFilters() {
   document.getElementById('signInSearch').value = '';
@@ -5691,6 +5863,7 @@ function resetSignInFilters() {
   const hf = document.getElementById('signInHostFilter');
   if (hf) hf.value = '';
   renderSignInTable();
+  updateFilterBadges();
 }
 function resetDutyIssueFilters() {
   document.getElementById('dutyIssueSearch').value = '';
@@ -5699,6 +5872,7 @@ function resetDutyIssueFilters() {
   const df = document.getElementById('dutyIssueDateFilter');
   if (df) df.value = '';
   renderDutyIssueTable();
+  updateFilterBadges();
 }
 function resetArHandoverFilters() {
   document.getElementById('arHandoverSearch').value = '';
@@ -5707,6 +5881,7 @@ function resetArHandoverFilters() {
   if (of) of.value = '';
   _cachedArFilteredIds = null;
   renderArHandoverTable();
+  updateFilterBadges();
 }
 function resetDailyHandoverFilters() {
   document.getElementById('dailyHandoverSearch').value = '';
@@ -5717,6 +5892,7 @@ function resetDailyHandoverFilters() {
   const cbf = document.getElementById('dailyHandoverCreatedByFilter');
   if (cbf) cbf.value = '';
   renderDailyHandoverCards();
+  updateFilterBadges();
 }
 
 // 点击遮罩关闭弹窗
