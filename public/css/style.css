@@ -2476,7 +2476,28 @@ html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
   font-size: 12.5px;
   box-shadow: var(--shadow-sm);
   white-space: nowrap;
+  font-family: inherit;
 }
+/* 状态胶囊可点击筛选 */
+button.dh-chip {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+button.dh-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+button.dh-chip:active { transform: translateY(0); }
+button.dh-chip:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+/* 选中态：加粗描边 + 对应主题色背景加深 */
+.dh-chip-active {
+  border-width: 2px !important;
+  padding: 3px 11px; /* 抵消加粗边框造成的抖动 */
+  box-shadow: var(--shadow-md) !important;
+}
+.dh-chip-all.dh-chip-active      { border-color: var(--accent-blue); background: color-mix(in srgb, var(--accent-blue) 14%, var(--bg-secondary)); }
+.dh-chip-all.dh-chip-active b    { color: var(--accent-blue); }
+.dh-chip-open.dh-chip-active     { border-color: var(--accent-orange); background: color-mix(in srgb, var(--accent-orange) 20%, var(--bg-secondary)); }
+.dh-chip-progress.dh-chip-active { border-color: var(--accent-blue); background: color-mix(in srgb, var(--accent-blue) 20%, var(--bg-secondary)); }
+.dh-chip-resolved.dh-chip-active { border-color: var(--accent-green); background: color-mix(in srgb, var(--accent-green) 20%, var(--bg-secondary)); }
+.dh-chip-closed.dh-chip-active   { opacity: 1; border-color: var(--text-faint); background: var(--bg-tertiary); }
 .dh-chip b {
   font-size: 14px;
   font-weight: 700;

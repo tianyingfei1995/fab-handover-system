@@ -4766,21 +4766,27 @@ async function loadDailyHandovers() {
   } catch (e) { console.error('Load daily handovers error:', e); showToast('其他交接数据加载失败', 'error'); }
 }
 
+// 其他交接：状态筛选通过点击统计胶囊实现（再点一次取消）
+let dhStatusChipFilter = '';
+
+function filterDailyHandoverByStatus(list, status) {
+  return status ? list.filter(h => h.status === status) : list;
+}
+
 function renderDailyHandoverCards() {
   const grid = document.getElementById('dailyHandoverGrid');
   if (!grid) return;
   const searchEl = document.getElementById('dailyHandoverSearch');
   const priorityEl = document.getElementById('dailyHandoverPriorityFilter');
-  const statusEl = document.getElementById('dailyHandoverStatusFilter');
   const categoryEl = document.getElementById('dailyHandoverCategoryFilter');
   const createdByEl = document.getElementById('dailyHandoverCreatedByFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const priorityFilter = priorityEl ? priorityEl.value : '';
-  const statusFilter = statusEl ? statusEl.value : '';
   const categoryFilter = categoryEl ? categoryEl.value : '';
   const createdByFilter = createdByEl ? createdByEl.value : '';
 
-  let filtered = dailyHandovers.filter(h => {
+  // 基础过滤（不含状态），供统计胶囊展示各状态全貌
+  const baseFiltered = dailyHandovers.filter(h => {
     const titleText = stripHtml(h.title).toLowerCase();
     const contentText = stripHtml(h.content || '').toLowerCase();
     const categoryText = stripHtml(h.category || '').toLowerCase();
@@ -4791,19 +4797,20 @@ function renderDailyHandoverCards() {
       (h.created_by || '').toLowerCase().includes(search) ||
       (h.due_date || '').toLowerCase().includes(search);
     const matchPriority = !priorityFilter || h.priority === priorityFilter;
-    const matchStatus = !statusFilter || h.status === statusFilter;
     const matchCategory = !categoryFilter || h.category === categoryFilter;
     const matchCreatedBy = !createdByFilter || (h.created_by || '') === createdByFilter;
-    return matchSearch && matchPriority && matchStatus && matchCategory && matchCreatedBy;
+    return matchSearch && matchPriority && matchCategory && matchCreatedBy;
   });
+
+  const filtered = filterDailyHandoverByStatus(baseFiltered, dhStatusChipFilter);
 
   if (filtered.length === 0) {
     grid.innerHTML = `<div class="empty-state">暂无其他交接事项，点击"新增交接"添加${filterResetLinkHtml('resetDailyHandoverFilters')}</div>`;
-    renderDhStatBar(filtered);
+    renderDhStatBar(baseFiltered);
     return;
   }
 
-  renderDhStatBar(filtered);
+  renderDhStatBar(baseFiltered);
 
   renderBatchedRows(grid, filtered, h => {
     const imgs = parseImagePaths(h.image_path);
@@ -4843,23 +4850,34 @@ function renderDailyHandoverCards() {
   `});
 }
 
-// 统计条：按当前筛选结果统计各状态/优先级数量
-function renderDhStatBar(filtered) {
+// 统计条：可点击的状态筛选胶囊（再点一次取消），统计数不受状态筛选影响
+function renderDhStatBar(baseFiltered) {
   const bar = document.getElementById('dhStatBar');
   if (!bar) return;
-  const count = (fn) => filtered.filter(fn).length;
+  const count = (fn) => baseFiltered.filter(fn).length;
   const highOpen = count(h => h.priority === 'high' && h.status !== 'closed');
   const chips = [
-    { label: '共', n: filtered.length, cls: '' },
-    { label: '待处理', n: count(h => h.status === 'open'), cls: 'dh-chip-open' },
-    { label: '处理中', n: count(h => h.status === 'in_progress'), cls: 'dh-chip-progress' },
-    { label: '已解决', n: count(h => h.status === 'resolved'), cls: 'dh-chip-resolved' },
-    { label: '已关闭', n: count(h => h.status === 'closed'), cls: 'dh-chip-closed' },
+    { key: '',            label: '共',     n: baseFiltered.length, cls: 'dh-chip-all' },
+    { key: 'open',        label: '待处理', n: count(h => h.status === 'open'), cls: 'dh-chip-open' },
+    { key: 'in_progress', label: '处理中', n: count(h => h.status === 'in_progress'), cls: 'dh-chip-progress' },
+    { key: 'resolved',    label: '已解决', n: count(h => h.status === 'resolved'), cls: 'dh-chip-resolved' },
+    { key: 'closed',      label: '已关闭', n: count(h => h.status === 'closed'), cls: 'dh-chip-closed' },
   ];
-  if (highOpen > 0) chips.push({ label: '高优先级未关闭', n: highOpen, cls: 'dh-chip-high' });
-  bar.innerHTML = chips.map(c =>
-    `<span class="dh-chip${c.cls ? ' ' + c.cls : ''}">${c.label}<b>${c.n}</b></span>`
-  ).join('');
+  let html = chips.map(c => {
+    const active = dhStatusChipFilter === c.key;
+    return `<button type="button" class="dh-chip${c.cls ? ' ' + c.cls : ''}${active ? ' dh-chip-active' : ''}" onclick="toggleDhStatusChip('${c.key}')" title="${active ? '点击取消筛选' : '点击筛选'}">${c.label}<b>${c.n}</b></button>`;
+  }).join('');
+  if (highOpen > 0) html += `<span class="dh-chip dh-chip-high">高优先级未关闭<b>${highOpen}</b></span>`;
+  bar.innerHTML = html;
+}
+
+function toggleDhStatusChip(status) {
+  dhStatusChipFilter = dhStatusChipFilter === status ? '' : status;
+  renderDailyHandoverCards();
+  updateFilterBadges();
+  // 胶囊筛选后回到列表顶部
+  const grid = document.getElementById('dailyHandoverGrid');
+  if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // 其他交接详情弹窗
@@ -5371,7 +5389,7 @@ const FILTER_BADGE_CONF = [
   { reset: 'resetSignInFilters',         ids: ['signInSearch', 'signInHostFilter'], ms: ['signInShiftMs'] },
   { reset: 'resetDutyIssueFilters',      ids: ['dutyIssueSearch', 'dutyIssueConfirmFilter', 'dutyIssueDateFilter'] },
   { reset: 'resetArHandoverFilters',     ids: ['arHandoverSearch', 'arHandoverStatusFilter', 'arHandoverOwnerFilter'] },
-  { reset: 'resetDailyHandoverFilters',  ids: ['dailyHandoverSearch', 'dailyHandoverPriorityFilter', 'dailyHandoverStatusFilter', 'dailyHandoverCategoryFilter', 'dailyHandoverCreatedByFilter'] },
+  { reset: 'resetDailyHandoverFilters',  ids: ['dailyHandoverSearch', 'dailyHandoverPriorityFilter', 'dailyHandoverCategoryFilter', 'dailyHandoverCreatedByFilter'] },
 ];
 
 function _activeFilterCount(conf) {
@@ -5381,6 +5399,8 @@ function _activeFilterCount(conf) {
     if (el && (el.value || '').trim()) n++;
   });
   (conf.ms || []).forEach(id => { if (msSelected(id).size > 0) n++; });
+  // 其他交接：状态胶囊筛选计入角标
+  if (conf.reset === 'resetDailyHandoverFilters' && dhStatusChipFilter) n++;
   return n;
 }
 
@@ -5804,7 +5824,6 @@ document.getElementById('machineSearch').addEventListener('input', debouncedMach
 document.getElementById('machineStatusFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
 document.getElementById('dailyHandoverSearch').addEventListener('input', debouncedDailyHandoverSearch);
 document.getElementById('dailyHandoverPriorityFilter').addEventListener('change', renderDailyHandoverCards);
-document.getElementById('dailyHandoverStatusFilter').addEventListener('change', renderDailyHandoverCards);
 document.getElementById('ltMachineSearch').addEventListener('input', debouncedLtMachineSearch);
 document.getElementById('ltMachineStatusFilter').addEventListener('change', () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); });
 document.getElementById('lotHandoverSearch').addEventListener('input', debouncedLotHSearch);
@@ -5912,7 +5931,7 @@ function resetArHandoverFilters() {
 function resetDailyHandoverFilters() {
   document.getElementById('dailyHandoverSearch').value = '';
   document.getElementById('dailyHandoverPriorityFilter').value = '';
-  document.getElementById('dailyHandoverStatusFilter').value = '';
+  dhStatusChipFilter = '';
   const cf = document.getElementById('dailyHandoverCategoryFilter');
   if (cf) cf.value = '';
   const cbf = document.getElementById('dailyHandoverCreatedByFilter');
