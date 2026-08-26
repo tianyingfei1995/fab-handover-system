@@ -460,7 +460,7 @@
     <section class="view-section" id="view-daily-handovers">
       <div class="section-header">
         <h1 class="section-title">其他交接提示</h1>
-        <p class="section-desc">其他班次交接事项追踪（独立数据库）</p>
+        <p class="section-desc">记录和追踪其他班次交接事项（独立数据库）</p>
       </div>
       <div class="toolbar">
         <div class="search-box">
@@ -513,7 +513,7 @@
     <section class="view-section" id="view-lot-handover">
       <div class="section-header">
         <h1 class="section-title">LOT交接管理</h1>
-        <p class="section-desc">LOT交接信息管理（独立数据库）</p>
+        <p class="section-desc">记录和追踪LOT交接事项（独立数据库）</p>
       </div>
       <div class="toolbar">
         <div class="search-box">
@@ -591,7 +591,7 @@
     <section class="view-section" id="view-sign-in">
       <div class="section-header">
         <h1 class="section-title">交接签到表管理</h1>
-        <p class="section-desc">班次交接签到记录（独立数据库）</p>
+        <p class="section-desc">记录和管理班次交接签到（独立数据库）</p>
       </div>
       <div class="toolbar">
         <div class="search-box">
@@ -975,7 +975,7 @@
           <div class="form-group">
             <label for="mMachineName">机台名称 <span class="required">*</span></label>
             <div class="owner-input-wrapper">
-              <input type="text" id="mMachineName" placeholder="如: 光刻机A区" autocomplete="off">
+              <input type="text" id="mMachineName" placeholder="例如：光刻机A区" autocomplete="off">
               <div class="owner-dropdown" id="machineNameDropdown"></div>
             </div>
           </div>
@@ -1133,7 +1133,7 @@ F："></div>
           <div class="form-group">
             <label for="ltMMachineName">机台名称 <span class="required">*</span></label>
             <div class="owner-input-wrapper">
-              <input type="text" id="ltMMachineName" placeholder="如: 光刻机A区" autocomplete="off">
+              <input type="text" id="ltMMachineName" placeholder="例如：光刻机A区" autocomplete="off">
               <div class="owner-dropdown" id="ltMachineNameDropdown"></div>
             </div>
           </div>
@@ -1437,7 +1437,7 @@ F："></div>
         <div class="form-grid">
           <div class="form-group">
             <label>Lot ID <span class="required">*</span></label>
-            <input type="text" id="lotHLotId" placeholder="如: LOT-2026-0001">
+            <input type="text" id="lotHLotId" placeholder="例如：LOT-2026-0001">
           </div>
           <div class="form-group">
             <label>状态</label>
@@ -1613,7 +1613,7 @@ F："></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('signInModal')">取消</button>
-        <button class="btn btn-primary" onclick="saveSignInSheet()">保存签到表</button>
+        <button class="btn btn-primary" onclick="saveSignInSheet()">保存</button>
       </div>
     </div>
   </div>
@@ -2050,7 +2050,7 @@ F："></div>
         <div class="form-grid">
           <div class="form-group">
             <label>工号 <span class="required">*</span></label>
-            <input type="text" id="userEmployeeId" placeholder="如: A0001">
+            <input type="text" id="userEmployeeId" placeholder="例如：A0001">
           </div>
           <div class="form-group">
             <label>姓名 <span class="required">*</span></label>
@@ -2175,15 +2175,15 @@ F："></div>
         <div class="form-grid">
           <div class="form-group">
             <label>旧密码 <span class="required">*</span></label>
-            <input type="password" id="oldPassword" placeholder="输入当前密码">
+            <input type="password" id="oldPassword" placeholder="请输入当前密码">
           </div>
           <div class="form-group">
             <label>新密码 <span class="required">*</span></label>
-            <input type="password" id="newPassword" placeholder="至少4位">
+            <input type="password" id="newPassword" placeholder="请输入新密码（至少4位）">
           </div>
           <div class="form-group">
             <label>确认新密码 <span class="required">*</span></label>
-            <input type="password" id="confirmNewPassword" placeholder="再次输入新密码">
+            <input type="password" id="confirmNewPassword" placeholder="请再次输入新密码">
           </div>
         </div>
       </div>
@@ -2236,7 +2236,7 @@ F："></div>
         <input type="hidden" id="deptEditId">
         <div class="form-group">
           <label>部门名称 <span class="required">*</span></label>
-          <input type="text" id="deptName" placeholder="如: 制造一部">
+          <input type="text" id="deptName" placeholder="例如：制造一部">
         </div>
         <div class="form-group">
           <label>描述</label>

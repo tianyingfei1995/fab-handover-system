@@ -1151,7 +1151,7 @@ async function saveUser() {
     closeModal('userModal');
     await loadUsers();
   } catch (e) {
-    showToast('操作失败: ' + e.message, 'error');
+    showToast('操作失败：' + e.message, 'error');
     await loadUsers();
   }
 }
@@ -1467,13 +1467,13 @@ function renderImportResult(res) {
 async function deleteUser(id) {
   const u = allUsers.find(x => x.id === id);
   if (!u) return;
-  if (!confirm(`确认删除用户 ${u.name} (${u.employee_id})？其自定义权限将一并清除。`)) return;
+  if (!confirm(`确定要删除用户 ${u.name}（${u.employee_id}）吗？其自定义权限将一并清除。`)) return;
   try {
     await apiCall('DELETE', `/users/${id}`);
     showToast('用户删除成功');
     await loadUsers();
   } catch (e) {
-    showToast('删除失败: ' + e.message, 'error');
+    showToast('删除失败：' + e.message, 'error');
   }
 }
 
@@ -1528,7 +1528,7 @@ async function saveNewPassword() {
     }
     closeModal('changePwdModal');
   } catch (e) {
-    showToast('修改失败: ' + e.message, 'error');
+    showToast('修改失败：' + e.message, 'error');
   }
 }
 
@@ -1587,7 +1587,7 @@ async function saveTransferDept() {
     return;
   }
 
-  if (!confirm(`确认将「${u ? u.name : ''}」转入「${targetDept || '未分配'}」？转入后仅可查看该部门数据。`)) {
+  if (!confirm(`确定要将「${u ? u.name : ''}」转入「${targetDept || '未分配'}」吗？转入后仅可查看该部门数据。`)) {
     return;
   }
 
@@ -1597,7 +1597,7 @@ async function saveTransferDept() {
     closeModal('transferDeptModal');
     await loadUsers(); // 刷新用户列表
   } catch (e) {
-    showToast('转部门失败: ' + e.message, 'error');
+    showToast('转部门失败：' + e.message, 'error');
   }
 }
 
@@ -1701,7 +1701,7 @@ async function saveRolePermissions() {
     // 重新加载缓存
     allRolePerms = await apiCall('GET', '/permissions');
   } catch (e) {
-    showToast('保存失败: ' + e.message, 'error');
+    showToast('保存失败：' + e.message, 'error');
   }
 }
 
@@ -1742,7 +1742,7 @@ async function onPermUserChange() {
     wrapEl.style.display = '';
     document.getElementById('userPermSaveWrap').style.display = '';
   } catch (e) {
-    showToast('加载用户权限失败: ' + e.message, 'error');
+    showToast('加载用户权限失败：' + e.message, 'error');
   }
 }
 
@@ -1817,7 +1817,7 @@ async function saveUserPermissions() {
     showToast('用户权限保存成功');
     await onPermUserChange(); // 重新加载显示
   } catch (e) {
-    showToast('保存失败: ' + e.message, 'error');
+    showToast('保存失败：' + e.message, 'error');
   }
 }
 
@@ -1925,7 +1925,7 @@ async function saveDept() {
     await loadDepartments();
     renderDeptTable();
   } catch (e) {
-    showToast('操作失败: ' + e.message, 'error');
+    showToast('操作失败：' + e.message, 'error');
     await loadDepartments();
     renderDeptTable();
   }
@@ -1934,14 +1934,14 @@ async function saveDept() {
 async function deleteDept(id) {
   const d = departments.find(x => x.id === id);
   if (!d) return;
-  if (!confirm(`确认删除部门「${d.name}」？`)) return;
+  if (!confirm(`确定要删除部门「${d.name}」吗？`)) return;
   try {
     await apiCall('DELETE', `/departments/${id}`);
     showToast('部门删除成功');
     await loadDepartments();
     renderDeptTable();
   } catch (e) {
-    showToast('删除失败: ' + e.message, 'error');
+    showToast('删除失败：' + e.message, 'error');
   }
 }
 
@@ -5740,7 +5740,7 @@ function renderArchiveList() {
   _archiveTotal = items.length;
 
   if (items.length === 0) {
-    container.innerHTML = '<div class="trash-empty">没有符合条件的归档记录</div>';
+    container.innerHTML = '<div class="trash-empty">暂无符合条件的归档记录，可调整筛选条件后重试</div>';
     updateArchiveBatchBar();
     return;
   }
