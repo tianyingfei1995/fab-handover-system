@@ -267,7 +267,7 @@
       <div class="toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" id="machineSearch" placeholder="搜索机台名称/Owner...">
+          <input type="text" id="machineSearch" placeholder="搜索机台名称/Owner/报警信息/备注...">
         </div>
         <div class="filter-group">
           <select id="machineStatusFilter" class="filter-select">
@@ -280,6 +280,22 @@
             <option value="repairing">维修中</option>
             <option value="standby">备用</option>
           </select>
+          <select id="machineProcessStatusFilter" class="filter-select">
+            <option value="">全部处理状态</option>
+            <option value="pending">待处理</option>
+            <option value="in_progress">处理中</option>
+            <option value="resolved">已解决</option>
+            <option value="closed">已关闭</option>
+          </select>
+          <select id="machineShiftFilter" class="filter-select">
+            <option value="">全部班次</option>
+            <option value="白班">白班</option>
+            <option value="夜班">夜班</option>
+          </select>
+          <button class="btn btn-ghost btn-sm btn-reset" onclick="resetMachineFilters()" title="重置筛选条件">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            重置
+          </button>
         </div>
         <button class="btn btn-primary perm-add-btn" data-perm-module="machine" onclick="openMachineModal()">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
@@ -345,7 +361,7 @@
       <div class="toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" id="ltMachineSearch" placeholder="搜索机台名称/Owner...">
+          <input type="text" id="ltMachineSearch" placeholder="搜索机台名称/Owner/报警信息/备注...">
         </div>
         <div class="filter-group">
           <select id="ltMachineStatusFilter" class="filter-select">
@@ -358,6 +374,22 @@
             <option value="repairing">维修中</option>
             <option value="standby">备用</option>
           </select>
+          <select id="ltMachineProcessStatusFilter" class="filter-select">
+            <option value="">全部处理状态</option>
+            <option value="pending">待处理</option>
+            <option value="in_progress">处理中</option>
+            <option value="resolved">已解决</option>
+            <option value="closed">已关闭</option>
+          </select>
+          <select id="ltMachineShiftFilter" class="filter-select">
+            <option value="">全部班次</option>
+            <option value="白班">白班</option>
+            <option value="夜班">夜班</option>
+          </select>
+          <button class="btn btn-ghost btn-sm btn-reset" onclick="resetLtMachineFilters()" title="重置筛选条件">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            重置
+          </button>
         </div>
         <button class="btn btn-primary perm-add-btn" data-perm-module="lt-machine" onclick="openLtMachineModal()">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
@@ -423,7 +455,7 @@
       <div class="toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" id="dailyHandoverSearch" placeholder="搜索标题/内容...">
+          <input type="text" id="dailyHandoverSearch" placeholder="搜索标题/内容/分类/创建人...">
         </div>
         <div class="filter-group">
           <select id="dailyHandoverPriorityFilter" class="filter-select">
@@ -439,6 +471,21 @@
             <option value="resolved">已解决</option>
             <option value="closed">已关闭</option>
           </select>
+          <select id="dailyHandoverCategoryFilter" class="filter-select">
+            <option value="">全部分类</option>
+            <option value="equipment">设备</option>
+            <option value="process">工艺</option>
+            <option value="quality">质量</option>
+            <option value="safety">安全</option>
+            <option value="other">其他</option>
+          </select>
+          <select id="dailyHandoverCreatedByFilter" class="filter-select">
+            <option value="">全部创建人</option>
+          </select>
+          <button class="btn btn-ghost btn-sm btn-reset" onclick="resetDailyHandoverFilters()" title="重置筛选条件">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            重置
+          </button>
         </div>
         <button class="btn btn-primary perm-add-btn" data-perm-module="daily-handover" onclick="openDailyHandoverModal()">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
@@ -461,7 +508,24 @@
       <div class="toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" id="lotHandoverSearch" placeholder="搜索 Lot ID / Detail / Comment / Follow up...">
+          <input type="text" id="lotHandoverSearch" placeholder="搜索 Lot ID / Detail / Comment / Follow up / 创建人 / 附件...">
+        </div>
+        <div class="filter-group">
+          <select id="lotHandoverStatusFilter" class="filter-select">
+            <option value="">全部状态</option>
+            <option value="open">待处理</option>
+            <option value="in_progress">处理中</option>
+            <option value="resolved">已解决</option>
+            <option value="closed">已关闭</option>
+          </select>
+          <select id="lotHandoverCreatedByFilter" class="filter-select">
+            <option value="">全部创建人</option>
+          </select>
+          <input type="date" id="lotHandoverDateFilter" class="filter-date" title="按创建日期筛选">
+          <button class="btn btn-ghost btn-sm btn-reset" onclick="resetLotHandoverFilters()" title="重置筛选条件">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            重置
+          </button>
         </div>
         <button class="btn btn-primary perm-add-btn" data-perm-module="lot-handover" onclick="openLotHandoverModal()">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
@@ -517,7 +581,22 @@
       <div class="toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" id="signInSearch" placeholder="搜索时间/地点/主持...">
+          <input type="text" id="signInSearch" placeholder="搜索时间/地点/主持/参会人/更新时间...">
+        </div>
+        <div class="filter-group">
+          <select id="signInShiftFilter" class="filter-select">
+            <option value="">全部班次</option>
+            <option value="白班">白班</option>
+            <option value="夜班">夜班</option>
+          </select>
+          <select id="signInHostFilter" class="filter-select">
+            <option value="">全部主持人</option>
+          </select>
+          <input type="date" id="signInDateFilter" class="filter-date" title="按班次日期筛选">
+          <button class="btn btn-ghost btn-sm btn-reset" onclick="resetSignInFilters()" title="重置筛选条件">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            重置
+          </button>
         </div>
         <button class="btn btn-primary perm-add-btn" data-perm-module="sign-in" onclick="openSignInModal()">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
@@ -573,7 +652,19 @@
       <div class="toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" id="dutyIssueSearch" placeholder="搜索问题归类/解决办法...">
+          <input type="text" id="dutyIssueSearch" placeholder="搜索问题归类1/归类2/处理过程/解决办法/确认人...">
+        </div>
+        <div class="filter-group">
+          <select id="dutyIssueConfirmFilter" class="filter-select">
+            <option value="">全部确认状态</option>
+            <option value="confirmed">已确认</option>
+            <option value="unconfirmed">未确认</option>
+          </select>
+          <input type="date" id="dutyIssueDateFilter" class="filter-date" title="按更新日期筛选">
+          <button class="btn btn-ghost btn-sm btn-reset" onclick="resetDutyIssueFilters()" title="重置筛选条件">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            重置
+          </button>
         </div>
         <button class="btn btn-primary perm-add-btn" data-perm-module="duty-issue" onclick="openDutyIssueModal()">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
@@ -630,7 +721,7 @@
       <div class="toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" id="arHandoverSearch" placeholder="搜索 AR / Owner-Section...">
+          <input type="text" id="arHandoverSearch" placeholder="搜索 AR / Owner-Section / 日期 / Due Date...">
         </div>
         <div class="filter-group">
           <select id="arHandoverStatusFilter" class="filter-select">
@@ -638,6 +729,14 @@
             <option value="open">待处理</option>
             <option value="closed">已关闭</option>
           </select>
+          <select id="arHandoverOwnerFilter" class="filter-select">
+            <option value="">全部Owner</option>
+          </select>
+          <input type="date" id="arHandoverDateFilter" class="filter-date" title="按日期筛选">
+          <button class="btn btn-ghost btn-sm btn-reset" onclick="resetArHandoverFilters()" title="重置筛选条件">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            重置
+          </button>
         </div>
         <button class="btn btn-primary perm-add-btn" data-perm-module="ar-handover" onclick="openArHandoverModal()">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
@@ -1967,7 +2066,7 @@ F："></div>
         <div id="cleanupNoticeAdminContent" style="display:none;">
           <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
             <div style="font-weight:600;color:#92400e;margin-bottom:6px;font-size:14px;">
-              ⚠️ 当前磁盘剩余空间：<strong id="cleanupNoticeDiskAdmin" style="color:#dc2626;"></strong>，低于预警阈值 5GB
+              ⚠️ 当前磁盘剩余空间：<strong id="cleanupNoticeDiskAdmin" style="color:#dc2626;"></strong>，低于预警阈值 10GB
             </div>
             <div style="font-size:13px;color:#78350f;line-height:1.6;">
               为避免磁盘满影响系统正常运行，建议及时清理<strong>已删除记录对应的无用图片文件</strong>。这些图片关联的记录已从回收站删除满半年，清理后<strong>无法恢复</strong>。

@@ -134,7 +134,7 @@ async function checkCleanupNotice() {
   // 系统管理员和部门管理员需要检查
   if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'dept_admin')) return;
   try {
-    const data = await _doFetch('GET', '/api/cleanup-notice');
+    const data = await _doFetch('GET', '/cleanup-notice');
     if (data.needNotify) {
       showCleanupNoticeModal(data);
     }
@@ -196,10 +196,10 @@ function closeCleanupNoticeModal() {
 // 系统管理员 - 同意清理
 async function approveCleanup() {
   try {
-    await _doFetch('POST', '/api/cleanup-notice/approve');
+    await _doFetch('POST', '/cleanup-notice/approve');
     showToast('已确认，正在执行清理...', 'success');
     // 同意后立即执行清理
-    const result = await _doFetch('POST', '/api/admin/cleanup-images/execute');
+    const result = await _doFetch('POST', '/admin/cleanup-images/execute');
     if (result && result.success) {
       showToast(`清理完成，共删除 ${result.deletedCount} 个文件，释放 ${formatBytes(result.freedBytes)}`, 'success');
     }
@@ -220,10 +220,10 @@ function dismissCleanupNoticeAdmin() {
 // 部门管理员 - 已知悉同意（立即执行本部门清理）
 async function acknowledgeCleanupDept() {
   try {
-    await _doFetch('POST', '/api/cleanup-notice/dept-acknowledge');
+    await _doFetch('POST', '/cleanup-notice/dept-acknowledge');
     showToast('已确认，正在清理本部门数据...', 'success');
     // 立即执行本部门清理
-    const result = await _doFetch('POST', '/api/dept/cleanup-images/execute');
+    const result = await _doFetch('POST', '/dept/cleanup-images/execute');
     if (result && result.success) {
       showToast(`清理完成，共删除 ${result.deletedCount} 个文件，释放 ${formatBytes(result.freedBytes)}`, 'success');
     }
@@ -1919,7 +1919,7 @@ function renderLotSummary() {
   countEl.textContent = dashboardData.totalLots || 0;
   if (lots.length === 0) { body.innerHTML = '<div class="empty-state">暂无LOT交接数据</div>'; return; }
   body.innerHTML = lots.map(lot => `
-    <div class="dash-summary-item">
+    <div class="dash-summary-item" onclick="showLotHandoverDetail(${lot.id})" style="cursor:pointer" title="点击查看详情">
       <div class="dash-summary-main">
         <span class="dash-summary-tag">${escapeHtml(lot.lot_id)}</span>
         <span class="dash-summary-text">${stripHtml(lot.detail).substring(0, 60)}${stripHtml(lot.detail).length > 60 ? '...' : ''}</span>
@@ -1937,7 +1937,7 @@ function renderAlerts() {
     return;
   }
   alertList.innerHTML = highPriority.map(h => `
-    <div class="alert-item">
+    <div class="alert-item" onclick="showDailyHandoverDetail(${h.id})" style="cursor:pointer" title="点击查看详情">
       <div class="alert-priority high"></div>
       <div class="alert-content">
         <div class="alert-title">${stripHtml(h.title)}</div>
@@ -2089,7 +2089,10 @@ function selectMachineName(name) {
   const input = document.getElementById('mMachineName');
   input.value = name;
   const mach = machines.find(m => m.machine_name === name);
-  if (mach && mach.owner) {
+  // 仅编辑模式联动带出 Owner；新增时保持 Owner 空白，
+  // 避免把不在本部门在职名单的历史负责人带入而引起校验报错
+  const isEdit = !!document.getElementById('machineEditId').value;
+  if (isEdit && mach && mach.owner) {
     document.getElementById('mOwner').value = mach.owner;
   }
   document.getElementById('machineNameDropdown').classList.remove('active');
@@ -2188,12 +2191,18 @@ function filteredMachineIds() {
   if (_cachedFilteredMachineIds) return _cachedFilteredMachineIds;
   const search = document.getElementById('machineSearch').value.toLowerCase();
   const statusFilter = document.getElementById('machineStatusFilter').value;
+  const processStatusFilter = document.getElementById('machineProcessStatusFilter') ? document.getElementById('machineProcessStatusFilter').value : '';
+  const shiftFilter = document.getElementById('machineShiftFilter') ? document.getElementById('machineShiftFilter').value : '';
   let filtered = machines.filter(m => {
     const matchSearch = !search ||
       (m.machine_name || '').toLowerCase().includes(search) ||
-      (m.owner || '').toLowerCase().includes(search);
+      (m.owner || '').toLowerCase().includes(search) ||
+      stripHtml(m.alarm_info || '').toLowerCase().includes(search) ||
+      (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
+    const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
+    return matchSearch && matchStatus && matchProcessStatus && matchShift;
   });
   _cachedFilteredMachineIds = applyMachineSort(filtered).map(m => m.id);
   return _cachedFilteredMachineIds;
@@ -2432,6 +2441,7 @@ async function saveMachine() {
   // 乐观更新：先关闭弹窗并更新本地数据
   closeModal('machineModal');
   const isEdit = !!id;
+  const tempId = Date.now();
   if (isEdit) {
     const idx = machines.findIndex(m => m.id == id);
     if (idx >= 0) {
@@ -2439,7 +2449,6 @@ async function saveMachine() {
     }
   } else {
     // 新增：临时插入，等服务器返回真实ID
-    const tempId = Date.now();
     machines.unshift({ id: tempId, ...data, created_at: getChinaTimeStr(), updated_at: getChinaTimeStr() });
   }
   _cachedFilteredMachineIds = null;
@@ -2463,7 +2472,7 @@ async function saveMachine() {
     // 后台静默刷新，确保数据一致
     loadMachines();
   } catch (e) {
-    showToast('操作失败，正在恢复数据', 'error');
+    showToast(`操作失败：${(e && e.message) || '未知错误'}`, 'error');
     await loadMachines();
   }
 }
@@ -2568,6 +2577,7 @@ async function loadArHandovers() {
   try {
     arHandovers = await apiCall('GET', '/ar-handovers');
     _cachedArFilteredIds = null;
+    populateAllFilterDropdowns();
     renderArHandoverTable();
   } catch (e) { console.error('Load arHandovers error:', e); showToast('AR交接数据加载失败', 'error'); }
 }
@@ -2611,12 +2621,20 @@ function filteredArIds() {
   if (_cachedArFilteredIds) return _cachedArFilteredIds;
   const search = document.getElementById('arHandoverSearch').value.toLowerCase();
   const statusFilter = document.getElementById('arHandoverStatusFilter').value;
+  const ownerEl = document.getElementById('arHandoverOwnerFilter');
+  const ownerFilter = ownerEl ? ownerEl.value : '';
+  const dateEl = document.getElementById('arHandoverDateFilter');
+  const dateFilter = dateEl ? dateEl.value : '';
   let filtered = arHandovers.filter(a => {
     const matchSearch = !search ||
       stripHtml(a.ar).toLowerCase().includes(search) ||
-      stripHtml(a.owner_section).toLowerCase().includes(search);
+      stripHtml(a.owner_section).toLowerCase().includes(search) ||
+      (a.date || '').toLowerCase().includes(search) ||
+      (a.due_date || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || a.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchOwner = !ownerFilter || (a.owner_section || '') === ownerFilter;
+    const matchDate = !dateFilter || (a.date || '').startsWith(dateFilter);
+    return matchSearch && matchStatus && matchOwner && matchDate;
   });
   filtered = applyArSort(filtered);
   _cachedArFilteredIds = filtered.map(a => a.id);
@@ -2683,15 +2701,23 @@ function renderArHandoverTable() {
   if (!tbody) return;
   const searchEl = document.getElementById('arHandoverSearch');
   const statusEl = document.getElementById('arHandoverStatusFilter');
+  const ownerEl = document.getElementById('arHandoverOwnerFilter');
+  const dateEl = document.getElementById('arHandoverDateFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const statusFilter = statusEl ? statusEl.value : '';
+  const ownerFilter = ownerEl ? ownerEl.value : '';
+  const dateFilter = dateEl ? dateEl.value : '';
 
   let filtered = arHandovers.filter(a => {
     const matchSearch = !search ||
       stripHtml(a.ar).toLowerCase().includes(search) ||
-      stripHtml(a.owner_section).toLowerCase().includes(search);
+      stripHtml(a.owner_section).toLowerCase().includes(search) ||
+      (a.date || '').toLowerCase().includes(search) ||
+      (a.due_date || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || a.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchOwner = !ownerFilter || (a.owner_section || '') === ownerFilter;
+    const matchDate = !dateFilter || (a.date || '').startsWith(dateFilter);
+    return matchSearch && matchStatus && matchOwner && matchDate;
   });
 
   filtered = applyArSort(filtered);
@@ -2756,11 +2782,11 @@ async function saveArHandover() {
 
   closeModal('arHandoverModal');
   const isEdit = !!id;
+  const tempId = Date.now();
   if (isEdit) {
     const idx = arHandovers.findIndex(a => a.id == id);
     if (idx >= 0) arHandovers[idx] = { ...arHandovers[idx], ...data, updated_at: getChinaTimeStr() };
   } else {
-    const tempId = Date.now();
     arHandovers.unshift({ id: tempId, ...data, created_at: getChinaTimeStr(), updated_at: getChinaTimeStr() });
   }
   _cachedArFilteredIds = null;
@@ -2779,7 +2805,7 @@ async function saveArHandover() {
     showToast(isEdit ? 'AR更新成功' : 'AR创建成功');
     loadArHandovers();
   } catch (e) {
-    showToast('操作失败，正在恢复', 'error');
+    showToast(`操作失败：${(e && e.message) || '未知错误'}`, 'error');
     await loadArHandovers();
   }
 }
@@ -2898,7 +2924,9 @@ function renderLtMachineNameDropdown(filter) {
 function selectLtMachineName(name) {
   document.getElementById('ltMMachineName').value = name;
   const mach = ltMachines.find(m => m.machine_name === name);
-  if (mach && mach.owner) {
+  // 仅编辑模式联动带出 Owner；新增时保持 Owner 空白，避免带入历史负责人
+  const isEdit = !!document.getElementById('ltMachineEditId').value;
+  if (isEdit && mach && mach.owner) {
     document.getElementById('ltMOwner').value = mach.owner;
   }
   document.getElementById('ltMachineNameDropdown').classList.remove('active');
@@ -2964,14 +2992,22 @@ function filteredLtMachineIds() {
   if (_cachedLtFilteredMachineIds) return _cachedLtFilteredMachineIds;
   const searchEl = document.getElementById('ltMachineSearch');
   const statusEl = document.getElementById('ltMachineStatusFilter');
+  const processEl = document.getElementById('ltMachineProcessStatusFilter');
+  const shiftEl = document.getElementById('ltMachineShiftFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const statusFilter = statusEl ? statusEl.value : '';
+  const processStatusFilter = processEl ? processEl.value : '';
+  const shiftFilter = shiftEl ? shiftEl.value : '';
   let filtered = ltMachines.filter(m => {
     const matchSearch = !search ||
       (m.machine_name || '').toLowerCase().includes(search) ||
-      (m.owner || '').toLowerCase().includes(search);
+      (m.owner || '').toLowerCase().includes(search) ||
+      stripHtml(m.alarm_info || '').toLowerCase().includes(search) ||
+      (m.remark || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || m.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchProcessStatus = !processStatusFilter || m.process_status === processStatusFilter;
+    const matchShift = !shiftFilter || (m.shift || '').includes(shiftFilter);
+    return matchSearch && matchStatus && matchProcessStatus && matchShift;
   });
   _cachedLtFilteredMachineIds = applyLtMachineSort(filtered).map(m => m.id);
   return _cachedLtFilteredMachineIds;
@@ -3180,11 +3216,11 @@ async function saveLtMachine() {
 
   closeModal('ltMachineModal');
   const isEdit = !!id;
+  const tempId = Date.now();
   if (isEdit) {
     const idx = ltMachines.findIndex(m => m.id == id);
     if (idx >= 0) ltMachines[idx] = { ...ltMachines[idx], ...data, updated_at: getChinaTimeStr() };
   } else {
-    const tempId = Date.now();
     ltMachines.unshift({ id: tempId, ...data, created_at: getChinaTimeStr(), updated_at: getChinaTimeStr() });
   }
   _cachedLtFilteredMachineIds = null;
@@ -3205,7 +3241,7 @@ async function saveLtMachine() {
     showToast(isEdit ? '机台更新成功' : '机台创建成功');
     loadLtMachines();
   } catch (e) {
-    showToast('操作失败，正在恢复数据', 'error');
+    showToast(`操作失败：${(e && e.message) || '未知错误'}`, 'error');
     await loadLtMachines();
   }
 }
@@ -3378,19 +3414,31 @@ function sortLotHTable(key) {
 async function loadLotHandovers() {
   try {
     lotHandovers = await apiCall('GET', '/lot-handovers');
+    populateAllFilterDropdowns();
     renderLotHandoverTable();
   } catch (e) { console.error('Load lot handovers error:', e); showToast('LOT交接数据加载失败', 'error'); }
 }
 
 function filteredLotHIds() {
   const search = document.getElementById('lotHandoverSearch').value.toLowerCase();
+  const statusEl = document.getElementById('lotHandoverStatusFilter');
+  const statusFilter = statusEl ? statusEl.value : '';
+  const createdByEl = document.getElementById('lotHandoverCreatedByFilter');
+  const createdByFilter = createdByEl ? createdByEl.value : '';
+  const dateEl = document.getElementById('lotHandoverDateFilter');
+  const dateFilter = dateEl ? dateEl.value : '';
   return lotHandovers.filter(h => {
     const matchSearch = !search ||
       (h.lot_id || '').toLowerCase().includes(search) ||
       (h.detail || '').toLowerCase().includes(search) ||
       (h.comment || '').toLowerCase().includes(search) ||
-      (h.follow_up || '').toLowerCase().includes(search);
-    return matchSearch;
+      stripHtml(h.follow_up || '').toLowerCase().includes(search) ||
+      (h.created_by || '').toLowerCase().includes(search) ||
+      (h.attachments || '').toLowerCase().includes(search);
+    const matchStatus = !statusFilter || h.status === statusFilter;
+    const matchCreatedBy = !createdByFilter || (h.created_by || '') === createdByFilter;
+    const matchDate = !dateFilter || (h.created_at || '').startsWith(dateFilter);
+    return matchSearch && matchStatus && matchCreatedBy && matchDate;
   }).map(h => h.id);
 }
 
@@ -3398,15 +3446,26 @@ function renderLotHandoverTable() {
   const tbody = document.getElementById('lotHandoverTableBody');
   if (!tbody) return;
   const searchEl = document.getElementById('lotHandoverSearch');
+  const statusEl = document.getElementById('lotHandoverStatusFilter');
+  const createdByEl = document.getElementById('lotHandoverCreatedByFilter');
+  const dateEl = document.getElementById('lotHandoverDateFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
+  const statusFilter = statusEl ? statusEl.value : '';
+  const createdByFilter = createdByEl ? createdByEl.value : '';
+  const dateFilter = dateEl ? dateEl.value : '';
 
   let filtered = lotHandovers.filter(h => {
     const matchSearch = !search ||
       (h.lot_id || '').toLowerCase().includes(search) ||
       (h.detail || '').toLowerCase().includes(search) ||
       (h.comment || '').toLowerCase().includes(search) ||
-      (h.follow_up || '').toLowerCase().includes(search);
-    return matchSearch;
+      stripHtml(h.follow_up || '').toLowerCase().includes(search) ||
+      (h.created_by || '').toLowerCase().includes(search) ||
+      (h.attachments || '').toLowerCase().includes(search);
+    const matchStatus = !statusFilter || h.status === statusFilter;
+    const matchCreatedBy = !createdByFilter || (h.created_by || '') === createdByFilter;
+    const matchDate = !dateFilter || (h.created_at || '').startsWith(dateFilter);
+    return matchSearch && matchStatus && matchCreatedBy && matchDate;
   });
 
   filtered = applyLotHSort(filtered);
@@ -3569,13 +3628,13 @@ async function saveLotHandover() {
   // 乐观更新
   closeModal('lotHandoverModal');
   const isEdit = !!id;
+  const tempId = Date.now();
   if (isEdit) {
     const idx = lotHandovers.findIndex(h => h.id == id);
     if (idx >= 0) {
       lotHandovers[idx] = { ...lotHandovers[idx], ...data, updated_at: getChinaTimeStr() };
     }
   } else {
-    const tempId = Date.now();
     lotHandovers.unshift({ id: tempId, ...data, created_by: currentUser?.name || '', created_at: getChinaTimeStr(), updated_at: getChinaTimeStr() });
   }
   renderLotHandoverTable();
@@ -3593,7 +3652,7 @@ async function saveLotHandover() {
     showToast(isEdit ? 'LOT交接更新成功' : 'LOT交接创建成功');
     loadLotHandovers();
   } catch (e) {
-    showToast('操作失败，正在恢复数据', 'error');
+    showToast(`操作失败：${(e && e.message) || '未知错误'}`, 'error');
     await loadLotHandovers();
   }
 }
@@ -3732,6 +3791,7 @@ function sortSignInTable(key) {
 async function loadSignInSheets() {
   try {
     signInSheets = await apiCall('GET', '/sign-in-sheets');
+    populateAllFilterDropdowns();
     renderSignInTable();
   } catch (e) { console.error('Load sign-in sheets error:', e); showToast('签到表数据加载失败', 'error'); }
 }
@@ -3757,14 +3817,27 @@ function renderSignInTable() {
   const tbody = document.getElementById('signInTableBody');
   if (!tbody) return;
   const searchEl = document.getElementById('signInSearch');
+  const shiftEl = document.getElementById('signInShiftFilter');
+  const hostEl = document.getElementById('signInHostFilter');
+  const dateEl = document.getElementById('signInDateFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
+  const shiftFilter = shiftEl ? shiftEl.value : '';
+  const hostFilter = hostEl ? hostEl.value : '';
+  const dateFilter = dateEl ? dateEl.value : '';
 
   let filtered = signInSheets.filter(s => {
+    let attendeesText = '';
+    try { attendeesText = typeof s.attendees === 'string' ? s.attendees : ''; } catch(e) {}
     const matchSearch = !search ||
       (s.shift_time || '').toLowerCase().includes(search) ||
       (s.location || '').toLowerCase().includes(search) ||
-      (s.host || '').toLowerCase().includes(search);
-    return matchSearch;
+      (s.host || '').toLowerCase().includes(search) ||
+      attendeesText.toLowerCase().includes(search) ||
+      (s.updated_at || '').toLowerCase().includes(search);
+    const matchShift = !shiftFilter || (s.shift_time || '').includes(shiftFilter);
+    const matchHost = !hostFilter || (s.host || '') === hostFilter;
+    const matchDate = !dateFilter || (s.shift_time || '').startsWith(dateFilter);
+    return matchSearch && matchShift && matchHost && matchDate;
   });
 
   filtered = applySignInSort(filtered);
@@ -3800,12 +3873,24 @@ function renderSignInTable() {
 function toggleSignInSelectAll(checked) {
   if (checked) {
     const search = (document.getElementById('signInSearch').value || '').toLowerCase();
+    const shiftEl = document.getElementById('signInShiftFilter');
+    const hostEl = document.getElementById('signInHostFilter');
+    const dateEl = document.getElementById('signInDateFilter');
+    const shiftFilter = shiftEl ? shiftEl.value : '';
+    const hostFilter = hostEl ? hostEl.value : '';
+    const dateFilter = dateEl ? dateEl.value : '';
     signInSheets.filter(s => {
+      let attendeesText = '';
+      try { attendeesText = typeof s.attendees === 'string' ? s.attendees : ''; } catch(e) {}
       const matchSearch = !search ||
         (s.shift_time || '').toLowerCase().includes(search) ||
         (s.location || '').toLowerCase().includes(search) ||
-        (s.host || '').toLowerCase().includes(search);
-      return matchSearch;
+        (s.host || '').toLowerCase().includes(search) ||
+        attendeesText.toLowerCase().includes(search);
+      const matchShift = !shiftFilter || (s.shift_time || '').includes(shiftFilter);
+      const matchHost = !hostFilter || (s.host || '') === hostFilter;
+      const matchDate = !dateFilter || (s.shift_time || '').startsWith(dateFilter);
+      return matchSearch && matchShift && matchHost && matchDate;
     }).forEach(s => selectedSignInIds.add(s.id));
   } else {
     selectedSignInIds.clear();
@@ -4031,13 +4116,13 @@ async function saveSignInSheet() {
   const data = { shift_time, location, host, attendees };
   closeModal('signInModal');
   const isEdit = !!id;
+  const tempId = Date.now();
   if (isEdit) {
     const idx = signInSheets.findIndex(s => s.id == id);
     if (idx >= 0) {
       signInSheets[idx] = { ...signInSheets[idx], ...data, updated_at: getChinaTimeStr() };
     }
   } else {
-    const tempId = Date.now();
     signInSheets.unshift({ id: tempId, ...data, created_at: getChinaTimeStr(), updated_at: getChinaTimeStr() });
   }
   renderSignInTable();
@@ -4056,7 +4141,7 @@ async function saveSignInSheet() {
     showToast(isEdit ? '签到表更新成功' : '签到表创建成功');
     loadSignInSheets();
   } catch (e) {
-    showToast('操作失败，正在恢复数据', 'error');
+    showToast(`操作失败：${(e && e.message) || '未知错误'}`, 'error');
     await loadSignInSheets();
   }
 }
@@ -4228,7 +4313,11 @@ function renderDutyIssueTable() {
   const tbody = document.getElementById('dutyIssueTableBody');
   if (!tbody) return;
   const searchEl = document.getElementById('dutyIssueSearch');
+  const confirmEl = document.getElementById('dutyIssueConfirmFilter');
+  const dateEl = document.getElementById('dutyIssueDateFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
+  const confirmFilter = confirmEl ? confirmEl.value : '';
+  const dateFilter = dateEl ? dateEl.value : '';
 
   let filtered = dutyIssues.filter(d => {
     const matchSearch = !search ||
@@ -4237,7 +4326,12 @@ function renderDutyIssueTable() {
       stripHtml(d.problem_process).toLowerCase().includes(search) ||
       stripHtml(d.solution).toLowerCase().includes(search) ||
       stripHtml(d.owner_confirm).toLowerCase().includes(search);
-    return matchSearch;
+    const hasConfirm = (d.owner_confirm || '').trim().length > 0;
+    const matchConfirm = !confirmFilter ||
+      (confirmFilter === 'confirmed' && hasConfirm) ||
+      (confirmFilter === 'unconfirmed' && !hasConfirm);
+    const matchDate = !dateFilter || (d.updated_at || '').startsWith(dateFilter);
+    return matchSearch && matchConfirm && matchDate;
   });
 
   filtered = applyDiSort(filtered);
@@ -4278,12 +4372,23 @@ function renderDutyIssueTable() {
 function toggleDiSelectAll(checked) {
   if (checked) {
     const search = (document.getElementById('dutyIssueSearch').value || '').toLowerCase();
+    const confirmEl = document.getElementById('dutyIssueConfirmFilter');
+    const dateEl = document.getElementById('dutyIssueDateFilter');
+    const confirmFilter = confirmEl ? confirmEl.value : '';
+    const dateFilter = dateEl ? dateEl.value : '';
     dutyIssues.filter(d => {
       const matchSearch = !search ||
         stripHtml(d.category1).toLowerCase().includes(search) ||
         stripHtml(d.category2).toLowerCase().includes(search) ||
-        stripHtml(d.solution).toLowerCase().includes(search);
-      return matchSearch;
+        stripHtml(d.problem_process).toLowerCase().includes(search) ||
+        stripHtml(d.solution).toLowerCase().includes(search) ||
+        stripHtml(d.owner_confirm).toLowerCase().includes(search);
+      const hasConfirm = (d.owner_confirm || '').trim().length > 0;
+      const matchConfirm = !confirmFilter ||
+        (confirmFilter === 'confirmed' && hasConfirm) ||
+        (confirmFilter === 'unconfirmed' && !hasConfirm);
+      const matchDate = !dateFilter || (d.updated_at || '').startsWith(dateFilter);
+      return matchSearch && matchConfirm && matchDate;
     }).forEach(d => selectedDiIds.add(d.id));
   } else {
     selectedDiIds.clear();
@@ -4427,11 +4532,11 @@ async function saveDutyIssue() {
 
   closeModal('dutyIssueModal');
   const isEdit = !!id;
+  const tempId = Date.now();
   if (isEdit) {
     const idx = dutyIssues.findIndex(d => d.id == id);
     if (idx >= 0) dutyIssues[idx] = { ...dutyIssues[idx], ...data, updated_at: getChinaTimeStr() };
   } else {
-    const tempId = Date.now();
     dutyIssues.unshift({ id: tempId, ...data, created_at: getChinaTimeStr(), updated_at: getChinaTimeStr() });
   }
   renderDutyIssueTable();
@@ -4449,7 +4554,7 @@ async function saveDutyIssue() {
     showToast(isEdit ? '值班问题更新成功' : '值班问题创建成功');
     loadDutyIssues();
   } catch (e) {
-    showToast('操作失败，正在恢复数据', 'error');
+    showToast(`操作失败：${(e && e.message) || '未知错误'}`, 'error');
     await loadDutyIssues();
   }
 }
@@ -4548,6 +4653,7 @@ function openDhLightboxGallery(handoverId) {
 async function loadDailyHandovers() {
   try {
     dailyHandovers = await apiCall('GET', '/daily-handovers');
+    populateAllFilterDropdowns();
     renderDailyHandoverCards();
   } catch (e) { console.error('Load daily handovers error:', e); showToast('其他交接数据加载失败', 'error'); }
 }
@@ -4558,19 +4664,29 @@ function renderDailyHandoverCards() {
   const searchEl = document.getElementById('dailyHandoverSearch');
   const priorityEl = document.getElementById('dailyHandoverPriorityFilter');
   const statusEl = document.getElementById('dailyHandoverStatusFilter');
+  const categoryEl = document.getElementById('dailyHandoverCategoryFilter');
+  const createdByEl = document.getElementById('dailyHandoverCreatedByFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const priorityFilter = priorityEl ? priorityEl.value : '';
   const statusFilter = statusEl ? statusEl.value : '';
+  const categoryFilter = categoryEl ? categoryEl.value : '';
+  const createdByFilter = createdByEl ? createdByEl.value : '';
 
   let filtered = dailyHandovers.filter(h => {
     const titleText = stripHtml(h.title).toLowerCase();
     const contentText = stripHtml(h.content || '').toLowerCase();
+    const categoryText = stripHtml(h.category || '').toLowerCase();
     const matchSearch = !search ||
       titleText.includes(search) ||
-      contentText.includes(search);
+      contentText.includes(search) ||
+      categoryText.includes(search) ||
+      (h.created_by || '').toLowerCase().includes(search) ||
+      (h.due_date || '').toLowerCase().includes(search);
     const matchPriority = !priorityFilter || h.priority === priorityFilter;
     const matchStatus = !statusFilter || h.status === statusFilter;
-    return matchSearch && matchPriority && matchStatus;
+    const matchCategory = !categoryFilter || h.category === categoryFilter;
+    const matchCreatedBy = !createdByFilter || (h.created_by || '') === createdByFilter;
+    return matchSearch && matchPriority && matchStatus && matchCategory && matchCreatedBy;
   });
 
   if (filtered.length === 0) {
@@ -4755,7 +4871,7 @@ async function saveDailyHandover() {
     }
     showToast(isEdit ? '其他交接更新成功' : '其他交接创建成功');
     loadDailyHandovers();
-  } catch (e) { showToast('操作失败，正在恢复', 'error'); await loadDailyHandovers(); }
+  } catch (e) { showToast(`操作失败：${(e && e.message) || '未知错误'}`, 'error'); await loadDailyHandovers(); }
 }
 
 async function deleteDailyHandover(id) {
@@ -4990,6 +5106,7 @@ const debouncedLtMachineSearch = debounce(() => { _cachedLtFilteredMachineIds = 
 const debouncedLotHSearch = debounce(renderLotHandoverTable, 200);
 const debouncedSignInSearch = debounce(renderSignInTable, 200);
 const debouncedArSearch = debounce(() => { _cachedArFilteredIds = null; renderArHandoverTable(); }, 200);
+const debouncedDutyIssueSearch = debounce(renderDutyIssueTable, 200);
 
 document.getElementById('machineSearch').addEventListener('input', debouncedMachineSearch);
 document.getElementById('machineStatusFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
@@ -5001,7 +5118,114 @@ document.getElementById('ltMachineStatusFilter').addEventListener('change', () =
 document.getElementById('lotHandoverSearch').addEventListener('input', debouncedLotHSearch);
 document.getElementById('signInSearch').addEventListener('input', debouncedSignInSearch);
 document.getElementById('arHandoverSearch').addEventListener('input', debouncedArSearch);
+document.getElementById('dutyIssueSearch').addEventListener('input', debouncedDutyIssueSearch);
 document.getElementById('arHandoverStatusFilter').addEventListener('change', () => { _cachedArFilteredIds = null; renderArHandoverTable(); });
+
+// 新增筛选器事件监听
+document.getElementById('machineProcessStatusFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
+document.getElementById('machineShiftFilter').addEventListener('change', () => { _cachedFilteredMachineIds = null; renderMachineTable(); });
+document.getElementById('ltMachineProcessStatusFilter').addEventListener('change', () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); });
+document.getElementById('ltMachineShiftFilter').addEventListener('change', () => { _cachedLtFilteredMachineIds = null; renderLtMachineTable(); });
+document.getElementById('lotHandoverStatusFilter').addEventListener('change', renderLotHandoverTable);
+document.getElementById('signInShiftFilter').addEventListener('change', renderSignInTable);
+
+// 新增筛选器事件监听 — 动态下拉框和日期筛选
+document.getElementById('lotHandoverCreatedByFilter').addEventListener('change', renderLotHandoverTable);
+document.getElementById('lotHandoverDateFilter').addEventListener('change', renderLotHandoverTable);
+document.getElementById('signInHostFilter').addEventListener('change', renderSignInTable);
+document.getElementById('signInDateFilter').addEventListener('change', renderSignInTable);
+document.getElementById('dutyIssueConfirmFilter').addEventListener('change', renderDutyIssueTable);
+document.getElementById('dutyIssueDateFilter').addEventListener('change', renderDutyIssueTable);
+document.getElementById('arHandoverOwnerFilter').addEventListener('change', () => { _cachedArFilteredIds = null; renderArHandoverTable(); });
+document.getElementById('arHandoverDateFilter').addEventListener('change', () => { _cachedArFilteredIds = null; renderArHandoverTable(); });
+document.getElementById('dailyHandoverCategoryFilter').addEventListener('change', renderDailyHandoverCards);
+document.getElementById('dailyHandoverCreatedByFilter').addEventListener('change', renderDailyHandoverCards);
+
+// ===== 动态筛选下拉框填充 =====
+function populateFilterDropdown(selectId, items, field) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const currentVal = sel.value;
+  const uniqueVals = [...new Set(items.map(it => (it[field] || '').trim()).filter(v => v))].sort();
+  sel.innerHTML = `<option value="">${sel.querySelector('option')?.textContent || '全部'}</option>` +
+    uniqueVals.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join('');
+  if (currentVal && [...sel.options].some(o => o.value === currentVal)) {
+    sel.value = currentVal;
+  }
+}
+
+function populateAllFilterDropdowns() {
+  populateFilterDropdown('lotHandoverCreatedByFilter', lotHandovers, 'created_by');
+  populateFilterDropdown('signInHostFilter', signInSheets, 'host');
+  populateFilterDropdown('arHandoverOwnerFilter', arHandovers, 'owner_section');
+  populateFilterDropdown('dailyHandoverCreatedByFilter', dailyHandovers, 'created_by');
+}
+
+// ===== 重置筛选函数 =====
+function resetMachineFilters() {
+  document.getElementById('machineSearch').value = '';
+  document.getElementById('machineStatusFilter').value = '';
+  document.getElementById('machineProcessStatusFilter').value = '';
+  document.getElementById('machineShiftFilter').value = '';
+  _cachedFilteredMachineIds = null;
+  renderMachineTable();
+}
+function resetLtMachineFilters() {
+  document.getElementById('ltMachineSearch').value = '';
+  document.getElementById('ltMachineStatusFilter').value = '';
+  document.getElementById('ltMachineProcessStatusFilter').value = '';
+  document.getElementById('ltMachineShiftFilter').value = '';
+  _cachedLtFilteredMachineIds = null;
+  renderLtMachineTable();
+}
+function resetLotHandoverFilters() {
+  document.getElementById('lotHandoverSearch').value = '';
+  const sf = document.getElementById('lotHandoverStatusFilter');
+  if (sf) sf.value = '';
+  const cbf = document.getElementById('lotHandoverCreatedByFilter');
+  if (cbf) cbf.value = '';
+  const df = document.getElementById('lotHandoverDateFilter');
+  if (df) df.value = '';
+  renderLotHandoverTable();
+}
+function resetSignInFilters() {
+  document.getElementById('signInSearch').value = '';
+  const sf = document.getElementById('signInShiftFilter');
+  if (sf) sf.value = '';
+  const hf = document.getElementById('signInHostFilter');
+  if (hf) hf.value = '';
+  const df = document.getElementById('signInDateFilter');
+  if (df) df.value = '';
+  renderSignInTable();
+}
+function resetDutyIssueFilters() {
+  document.getElementById('dutyIssueSearch').value = '';
+  const cf = document.getElementById('dutyIssueConfirmFilter');
+  if (cf) cf.value = '';
+  const df = document.getElementById('dutyIssueDateFilter');
+  if (df) df.value = '';
+  renderDutyIssueTable();
+}
+function resetArHandoverFilters() {
+  document.getElementById('arHandoverSearch').value = '';
+  document.getElementById('arHandoverStatusFilter').value = '';
+  const of = document.getElementById('arHandoverOwnerFilter');
+  if (of) of.value = '';
+  const df = document.getElementById('arHandoverDateFilter');
+  if (df) df.value = '';
+  _cachedArFilteredIds = null;
+  renderArHandoverTable();
+}
+function resetDailyHandoverFilters() {
+  document.getElementById('dailyHandoverSearch').value = '';
+  document.getElementById('dailyHandoverPriorityFilter').value = '';
+  document.getElementById('dailyHandoverStatusFilter').value = '';
+  const cf = document.getElementById('dailyHandoverCategoryFilter');
+  if (cf) cf.value = '';
+  const cbf = document.getElementById('dailyHandoverCreatedByFilter');
+  if (cbf) cbf.value = '';
+  renderDailyHandoverCards();
+}
 
 // 点击遮罩关闭弹窗
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
@@ -5199,15 +5423,31 @@ async function uploadAttachments(files) {
 
   showToast('附件上传中...', 'success');
   try {
-    const result = await apiCall('POST', ctx.uploadUrl.replace('/api/', ''), formData, true);
+    const token = getAuthToken();
+    const headers = {};
+    if (token) headers['x-auth-token'] = token;
+    // 注意：必须用原生 fetch 直接提交 FormData，
+    // 不能走 apiCall —— apiCall 会强制 JSON.stringify 并设 Content-Type: application/json，导致 multer 收不到文件
+    const res = await fetch(ctx.uploadUrl, { method: 'POST', headers, body: formData });
+    if (res.status === 401) { handleSessionExpired(); throw new Error('会话过期'); }
+    if (res.status === 403) throw new Error('无操作权限');
+    if (res.status === 400) {
+      let errMsg = '上传失败';
+      try { const b = await res.json(); if (b.error) errMsg = b.error; } catch (_) {}
+      throw new Error(errMsg);
+    }
+    const result = await res.json();
+    if (result.error) throw new Error(result.error);
     if (result.files && result.files.length > 0) {
       currentAttachments.push(...result.files);
       syncAttachments();
       renderAttachmentList();
       showToast(`成功上传 ${result.files.length} 个附件`);
+    } else {
+      showToast('未返回文件信息', 'error');
     }
   } catch (e) {
-    showToast('附件上传失败：' + (e.error || e.message || '未知错误'), 'error');
+    showToast('附件上传失败：' + (e.message || '未知错误'), 'error');
   }
 }
 
