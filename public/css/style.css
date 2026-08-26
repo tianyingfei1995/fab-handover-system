@@ -1787,7 +1787,6 @@ input[type="checkbox"] {
 .data-table thead th {
   background-image: linear-gradient(180deg, var(--bg-tertiary), color-mix(in srgb, var(--bg-tertiary) 88%, var(--accent-blue) 6%));
 }
-.data-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--bg-secondary) 96%, var(--accent-blue) 2%); }
 .data-table tbody tr { transition: background-color 0.12s; }
 .data-table tbody tr:not(.selected):hover { background: var(--bg-hover); }
 
@@ -2339,9 +2338,7 @@ html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--bg-tertiary) 70%, var(--bg-secondary));
 }
-.data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected) {
-  background: color-mix(in srgb, var(--bg-tertiary) 38%, transparent);
-}
+/* 斑马纹交替背景已移除：所有行统一底色，仅靠行边框区分 */
 .data-table tbody tr.clickable-row { transition: background 0.12s ease; }
 .data-table tbody tr.clickable-row:hover:not(.row-selected) {
   background: color-mix(in srgb, var(--accent-blue) 7%, var(--bg-hover));
@@ -2476,11 +2473,7 @@ html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .handover-card { transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
 .handover-card:hover { border-color: color-mix(in srgb, var(--accent-blue) 40%, var(--border)); }
 
-/* ─── 16. 深色主题下减弱斑马纹对比，保持柔和 ─── */
-[data-theme="dark"] .data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected),
-[data-theme="noir"] .data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected) {
-  background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
-}
+/* ─── 16. 深色主题：斑马纹已全局移除，此规则保留占位避免遗漏 ─── */
 
 /* ═══════════════════════════════════════════════════════
    其他交接页 · 重新设计层
