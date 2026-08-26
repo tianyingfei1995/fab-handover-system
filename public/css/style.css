@@ -1342,6 +1342,9 @@ kbd {
 .archive-check input, .archive-check-all input { cursor: pointer; }
 .archive-modal-footer { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 .archive-modal-footer .batch-count { margin-left: auto; }
+.archive-filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-tertiary); margin-bottom: 10px; }
+.archive-filter-bar .search-box { flex: 1; min-width: 180px; }
+#archiveListContainer { max-height: 50vh; overflow-y: auto; }
 
 /* ─── 权限表 ─── */
 .perm-table th, .perm-table td { text-align: center !important; }

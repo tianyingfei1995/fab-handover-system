@@ -4990,28 +4990,61 @@ const trashConfig = {
       title: item.machine_name || '未知机台',
       desc: `${item.shift || '-'} | ${item.owner || '-'} | ${item.alarm_info ? item.alarm_info.substring(0, 50) : '-'}`
     }),
-    reload: loadMachines
+    reload: loadMachines,
+    archiveFilters: {
+      search: { fields: ['machine_name', 'owner', 'alarm_info', 'remark'] },
+      selects: [
+        { key: 'status', allLabel: '全部状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
+        { key: 'process_status', allLabel: '全部处理状态', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
+        { key: 'shift', allLabel: '全部班次', options: [['白班','白班'],['夜班','夜班']], mode: 'includes' }
+      ]
+    }
   },
   'daily-handover': {
     path: 'daily-handovers', label: '其他交接', renderItem: (item) => ({
       title: stripHtml(item.title) || '无标题',
       desc: stripHtml(item.content ? item.content.substring(0, 80) : '无内容')
     }),
-    reload: loadDailyHandovers
+    reload: loadDailyHandovers,
+    archiveFilters: {
+      search: { fields: ['title', 'content', 'category', 'created_by', 'due_date'] },
+      selects: [
+        { key: 'priority', allLabel: '全部优先级', options: [['high','高'],['medium','中'],['low','低']] },
+        { key: 'status', allLabel: '全部状态', options: [['open','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
+        { key: 'category', allLabel: '全部分类', options: [['equipment','设备'],['process','工艺'],['quality','质量'],['safety','安全'],['other','其他']] },
+        { key: 'created_by', allLabel: '全部创建人', dynamic: true }
+      ]
+    }
   },
   'lt-machine': {
     path: 'long-term-machines', label: '长期机台', renderItem: (item) => ({
       title: item.machine_name || '未知机台',
       desc: `${item.shift || '-'} | ${item.owner || '-'} | ${item.alarm_info ? item.alarm_info.substring(0, 50) : '-'}`
     }),
-    reload: loadLtMachines
+    reload: loadLtMachines,
+    archiveFilters: {
+      search: { fields: ['machine_name', 'owner', 'alarm_info', 'remark'] },
+      selects: [
+        { key: 'status', allLabel: '全部状态', options: [['running','运行中'],['down','停机'],['idle','待机'],['maintenance','保养维护中'],['abnormal_pending','异常待处理'],['repairing','维修中'],['standby','备用']] },
+        { key: 'process_status', allLabel: '全部处理状态', options: [['pending','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
+        { key: 'shift', allLabel: '全部班次', options: [['白班','白班'],['夜班','夜班']], mode: 'includes' }
+      ]
+    }
   },
   'lot-handover': {
     path: 'lot-handovers', label: 'LOT交接', renderItem: (item) => ({
       title: item.lot_id || '未知LOT',
       desc: `${item.detail ? item.detail.substring(0, 60) : '-'} | ${item.follow_up ? '有Follow up' : '无Follow up'}`
     }),
-    reload: loadLotHandovers
+    reload: loadLotHandovers,
+    archiveFilters: {
+      search: { fields: ['lot_id', 'detail', 'comment', 'follow_up', 'created_by', 'attachments'] },
+      selects: [
+        { key: 'status', allLabel: '全部状态', options: [['open','待处理'],['in_progress','处理中'],['resolved','已解决'],['closed','已关闭']] },
+        { key: 'created_by', allLabel: '全部创建人', dynamic: true }
+      ],
+      dateKey: 'created_at'
+    }
   },
   'sign-in': {
     path: 'sign-in-sheets', label: '签到表', renderItem: (item) => {
@@ -5022,21 +5055,43 @@ const trashConfig = {
         desc: `${item.location || '-'} | ${item.host || '-'} | ${count}人`
       };
     },
-    reload: loadSignInSheets
+    reload: loadSignInSheets,
+    archiveFilters: {
+      search: { fields: ['shift_time', 'location', 'host', 'attendees'] },
+      selects: [
+        { key: 'shift_time', label: '全部班次', allLabel: '全部班次', options: [['白班','白班'],['夜班','夜班']], mode: 'includes' },
+        { key: 'host', allLabel: '全部主持人', dynamic: true }
+      ],
+      dateKey: 'shift_time'
+    }
   },
   'duty-issue': {
     path: 'duty-issues', label: '值班问题', renderItem: (item) => ({
       title: stripHtml(item.category1) || stripHtml(item.category2) || '未知问题',
       desc: `${stripHtml(item.problem_process).substring(0, 60) || '-'} | ${stripHtml(item.solution).substring(0, 40) || '-'}`
     }),
-    reload: loadDutyIssues
+    reload: loadDutyIssues,
+    archiveFilters: {
+      search: { fields: ['category1', 'category2', 'problem_process', 'solution', 'owner_confirm'] },
+      selects: [
+        { key: 'owner_confirm', allLabel: '全部确认状态', type: 'confirm', options: [['confirmed','已确认'],['unconfirmed','未确认']] }
+      ],
+      dateKey: 'updated_at'
+    }
   },
   'ar-handover': {
     path: 'ar-handovers', label: 'AR交接', renderItem: (item) => ({
       title: stripHtml(item.ar) || '无AR内容',
       desc: `${item.date || '-'} | ${item.due_date || '-'} | ${item.status || '-'}`
     }),
-    reload: loadArHandovers
+    reload: loadArHandovers,
+    archiveFilters: {
+      search: { fields: ['ar', 'owner_section', 'date', 'due_date'] },
+      selects: [
+        { key: 'status', allLabel: '全部状态', options: [['open','待处理'],['closed','已关闭']] },
+        { key: 'owner_section', allLabel: '全部Owner', dynamic: true }
+      ]
+    }
   }
 };
 
@@ -5154,6 +5209,7 @@ function batchArchiveSelected(type) {
 let _archiveType = null;
 let _archiveChecked = new Set();
 let _archiveTotal = 0;
+let _archiveItems = [];
 
 function updateArchiveBatchBar() {
   const countEl = document.getElementById('archiveBatchCount');
@@ -5193,8 +5249,8 @@ async function openArchiveModal(type) {
   openModal('archiveModal');
 
   try {
-    const items = await apiCall('GET', `/${config.path}/archived`);
-    if (!items || items.length === 0) {
+    _archiveItems = await apiCall('GET', `/${config.path}/archived`);
+    if (!_archiveItems || _archiveItems.length === 0) {
       _archiveTotal = 0;
       body.innerHTML = `
         <div class="trash-empty">
@@ -5204,35 +5260,157 @@ async function openArchiveModal(type) {
       updateArchiveBatchBar();
       return;
     }
-    _archiveTotal = items.length;
-    body.innerHTML = items.map(item => {
-      const info = config.renderItem(item);
-      return `
-        <div class="trash-item">
-          <label class="archive-check" onclick="event.stopPropagation()">
-            <input type="checkbox" data-id="${item.id}" onchange="toggleArchiveCheck(${item.id}, this.checked)">
-          </label>
-          <div class="trash-item-info">
-            <div class="trash-item-title">${escapeHtml(info.title)}</div>
-            <div class="trash-item-desc">${escapeHtml(info.desc)}</div>
-            <div class="trash-item-time">归档时间: ${formatDateTime(item.archived_at)}</div>
-          </div>
-          <div class="trash-item-actions">
-            <button class="btn btn-primary btn-sm" onclick="unarchiveItem('${type}', ${item.id})">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-              撤销归档
-            </button>
-            <button class="btn btn-danger btn-sm" onclick="deleteArchivedItem('${type}', [${item.id}])">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-              删除
-            </button>
-          </div>
-        </div>`;
-    }).join('');
-    updateArchiveBatchBar();
+    renderArchiveModalContent();
   } catch (e) {
     body.innerHTML = '<div class="trash-empty">加载失败，请重试</div>';
   }
+}
+
+// 归档字段取文本（HTML 去标签、对象转字符串，统一小写）
+function _archiveFieldText(item, key) {
+  let v = item[key];
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') v = JSON.stringify(v);
+  let s = String(v);
+  if (s.includes('<')) s = stripHtml(s);
+  return s.toLowerCase();
+}
+
+// 渲染筛选栏 + 列表
+function renderArchiveModalContent() {
+  const config = trashConfig[_archiveType];
+  const af = config.archiveFilters || {};
+  const body = document.getElementById('archiveModalBody');
+
+  let filterHtml = '';
+  if (af.search || af.selects || af.dateKey) {
+    const selectsHtml = (af.selects || []).map(sel => {
+      let opts;
+      if (sel.dynamic) {
+        const vals = [...new Set(_archiveItems.map(it => (it[sel.key] || '').toString().trim()).filter(Boolean))].sort();
+        opts = vals.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+      } else {
+        opts = (sel.options || []).map(([v, l]) => `<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`).join('');
+      }
+      return `<select class="filter-select archive-filter-select" data-key="${sel.key}" data-mode="${sel.mode || 'exact'}" data-type="${sel.type || ''}" onchange="renderArchiveList()">
+        <option value="">${escapeHtml(sel.allLabel)}</option>${opts}
+      </select>`;
+    }).join('');
+    const dateHtml = af.dateKey
+      ? `<input type="date" class="filter-date archive-filter-date" data-datekey="${af.dateKey}" onchange="renderArchiveList()" title="按日期筛选">`
+      : '';
+    filterHtml = `
+      <div class="archive-filter-bar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" class="archive-search-input" placeholder="搜索已归档记录..." oninput="debounceArchiveSearch()">
+        </div>
+        ${selectsHtml}${dateHtml}
+        <button class="btn btn-ghost btn-sm btn-reset" onclick="resetArchiveFilters()" title="重置筛选条件">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          重置
+        </button>
+      </div>`;
+  }
+
+  body.innerHTML = `${filterHtml}<div id="archiveListContainer"></div>`;
+  renderArchiveList();
+}
+
+// 按筛选条件过滤归档记录（客户端）
+function filterArchiveItems() {
+  const config = trashConfig[_archiveType];
+  const af = config.archiveFilters;
+  if (!af) return _archiveItems;
+  const body = document.getElementById('archiveModalBody');
+  const search = (body.querySelector('.archive-search-input')?.value || '').toLowerCase();
+  const selects = [...body.querySelectorAll('.archive-filter-select')];
+  const dateVal = body.querySelector('.archive-filter-date')?.value || '';
+
+  return _archiveItems.filter(item => {
+    if (search && af.search) {
+      const hit = af.search.fields.some(f => _archiveFieldText(item, f).includes(search));
+      if (!hit) return false;
+    }
+    for (const sel of selects) {
+      const v = sel.value;
+      if (!v) continue;
+      const key = sel.dataset.key, mode = sel.dataset.mode, type = sel.dataset.type;
+      if (type === 'confirm') {
+        const hasConfirm = (item[key] || '').toString().trim().length > 0;
+        if ((v === 'confirmed' && !hasConfirm) || (v === 'unconfirmed' && hasConfirm)) return false;
+      } else if (mode === 'includes') {
+        if (!_archiveFieldText(item, key).includes(v.toLowerCase())) return false;
+      } else if ((item[key] || '').toString() !== v) {
+        return false;
+      }
+    }
+    if (dateVal) {
+      const dk = body.querySelector('.archive-filter-date').dataset.datekey;
+      if (!(item[dk] || '').startsWith(dateVal)) return false;
+    }
+    return true;
+  });
+}
+
+// 渲染归档列表（保留勾选状态）
+function renderArchiveList() {
+  const config = trashConfig[_archiveType];
+  if (!config) return;
+  const container = document.getElementById('archiveListContainer');
+  if (!container) return;
+  const items = filterArchiveItems();
+  _archiveTotal = items.length;
+
+  if (items.length === 0) {
+    container.innerHTML = '<div class="trash-empty">没有符合条件的归档记录</div>';
+    updateArchiveBatchBar();
+    return;
+  }
+  const type = _archiveType;
+  container.innerHTML = items.map(item => {
+    const info = config.renderItem(item);
+    return `
+      <div class="trash-item">
+        <label class="archive-check" onclick="event.stopPropagation()">
+          <input type="checkbox" data-id="${item.id}" ${_archiveChecked.has(item.id) ? 'checked' : ''} onchange="toggleArchiveCheck(${item.id}, this.checked)">
+        </label>
+        <div class="trash-item-info">
+          <div class="trash-item-title">${escapeHtml(info.title)}</div>
+          <div class="trash-item-desc">${escapeHtml(info.desc)}</div>
+          <div class="trash-item-time">归档时间: ${formatDateTime(item.archived_at)}</div>
+        </div>
+        <div class="trash-item-actions">
+          <button class="btn btn-primary btn-sm" onclick="unarchiveItem('${type}', ${item.id})">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            撤销归档
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="deleteArchivedItem('${type}', [${item.id}])">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            删除
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+  updateArchiveBatchBar();
+}
+
+// 归档搜索防抖
+let _archiveSearchTimer = null;
+function debounceArchiveSearch() {
+  clearTimeout(_archiveSearchTimer);
+  _archiveSearchTimer = setTimeout(renderArchiveList, 200);
+}
+
+// 重置归档弹窗筛选条件
+function resetArchiveFilters() {
+  const body = document.getElementById('archiveModalBody');
+  const input = body.querySelector('.archive-search-input');
+  if (input) input.value = '';
+  body.querySelectorAll('.archive-filter-select').forEach(s => { s.value = ''; });
+  const date = body.querySelector('.archive-filter-date');
+  if (date) date.value = '';
+  renderArchiveList();
 }
 
 // 撤销归档（恢复显示）
