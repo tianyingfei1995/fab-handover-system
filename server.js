@@ -658,9 +658,10 @@ function isAdminUser(req) {
   return req.user && req.user.role === 'admin';
 }
 
-// 返回部门过滤 SQL 片段（admin 不过滤）
+// 返回部门过滤 SQL 片段（admin 不过滤；空部门记录为公共记录，所有部门可见）
 function deptWhere(req, col = 'department') {
-  return isAdminUser(req) ? '' : ` AND ${col} = ?`;
+  if (isAdminUser(req)) return '';
+  return ` AND (${col} = ? OR TRIM(IFNULL(${col}, '')) = '')`;
 }
 
 // 返回部门过滤参数数组（admin 为空）
