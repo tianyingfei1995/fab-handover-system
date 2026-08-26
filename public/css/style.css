@@ -1716,6 +1716,7 @@ input[type="checkbox"] {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0; /* 手机端单列时允许收缩，防止长文本撑爆横向溢出 */
 }
 .dashboard-alerts:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .alerts-header {
@@ -1740,7 +1741,8 @@ input[type="checkbox"] {
 
 /* 响应式：主看板并排改为单列，提醒列表回落到固定高度 */
 @media (max-width: 1024px) {
-  .dash-main-grid { grid-template-columns: 1fr; }
+  /* minmax(0,1fr)：允许轨道收缩到内容以下，防止长文本把单列撑爆导致横向溢出 */
+  .dash-main-grid { grid-template-columns: minmax(0, 1fr); }
   .alerts-list { max-height: 320px; }
 }
 
