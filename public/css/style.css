@@ -382,6 +382,13 @@ kbd {
   font-size: 13px;
 }
 .filter-date:focus { outline: none; border-color: var(--accent-blue); }
+/* 日期筛选占位提示（空值时显示，选日期/聚焦后隐藏） */
+.filter-date[data-placeholder]:invalid::before {
+  content: attr(data-placeholder);
+  color: var(--text-faint);
+}
+.filter-date[data-placeholder]:valid::before,
+.filter-date[data-placeholder]:focus::before { visibility: hidden; }
 
 /* ─── 按钮 ─── */
 .btn {

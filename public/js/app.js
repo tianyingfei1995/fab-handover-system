@@ -5363,7 +5363,7 @@ function renderArchiveModalContent() {
       </select>`;
     }).join('');
     const dateHtml = af.dateKey
-      ? `<input type="date" class="filter-date archive-filter-date" data-datekey="${af.dateKey}" onchange="renderArchiveList()" title="按日期筛选">`
+      ? `<input type="date" class="filter-date archive-filter-date" data-datekey="${af.dateKey}" data-placeholder="${af.dateKey === 'updated_at' ? '更新日期' : '创建日期'}" required onchange="renderArchiveList()" title="按日期筛选">`
       : '';
     filterHtml = `
       <div class="archive-filter-bar">
