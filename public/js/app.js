@@ -86,6 +86,24 @@ const STATUS_MAP = {
 };
 
 // ===== 工具函数 =====
+// 处理状态 → 行样式类：待处理/处理中醒目（色条+轻底），已解决/已关闭文字淡化
+function statusRowClass(s) {
+  if (s === 'pending') return ' row-pending';
+  if (s === 'in_progress') return ' row-progress';
+  if (s === 'resolved') return ' row-resolved';
+  if (s === 'closed') return ' row-closed';
+  return '';
+}
+
+// 处理状态 → 卡片样式类（与 statusRowClass 同语言）
+function statusCardClass(s) {
+  if (s === 'pending') return ' card-pending';
+  if (s === 'in_progress') return ' card-progress';
+  if (s === 'resolved') return ' card-resolved';
+  if (s === 'closed') return ' card-closed';
+  return '';
+}
+
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   const div = document.createElement('div');
@@ -2573,7 +2591,7 @@ function renderMachineTable() {
   }
 
   renderBatchedRows(tbody, filtered, m => `
-    <tr class="clickable-row${m.process_status === 'closed' ? ' row-closed' : (m.process_status === 'resolved' ? ' row-resolved' : '')}${selectedMachineIds.has(m.id) ? ' row-selected' : ''}" onclick="showMachineDetail(${m.id})">
+    <tr class="clickable-row${statusRowClass(m.process_status)}${selectedMachineIds.has(m.id) ? ' row-selected' : ''}" onclick="showMachineDetail(${m.id})">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedMachineIds.has(m.id) ? 'checked' : ''} onchange="toggleMachineSelect(${m.id}, this.checked)"></td>
       <td><strong>${escapeHtml(m.machine_name)}</strong></td>
       <td><span class="status-badge status-${escapeAttr(m.status)}">${STATUS_MAP.machine[m.status] || escapeHtml(m.status)}</span></td>
@@ -2971,7 +2989,7 @@ function renderArHandoverTable() {
   }
 
   renderBatchedRows(tbody, filtered, (a, i) => `
-    <tr class="clickable-row${a.status === 'closed' ? ' row-closed' : (a.status === 'resolved' ? ' row-resolved' : '')}${selectedArIds.has(a.id) ? ' row-selected' : ''}" onclick="showArHandoverDetail(${a.id})">
+    <tr class="clickable-row${statusRowClass(a.status)}${selectedArIds.has(a.id) ? ' row-selected' : ''}" onclick="showArHandoverDetail(${a.id})">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedArIds.has(a.id) ? 'checked' : ''} onchange="toggleArSelect(${a.id}, this.checked)"></td>
       <td style="text-align:center;"><strong>${i + 1}</strong></td>
       <td>${escapeHtml(a.date || '-')}</td>
@@ -3352,7 +3370,7 @@ function renderLtMachineTable() {
   }
 
   renderBatchedRows(tbody, filtered, m => `
-    <tr class="clickable-row${m.process_status === 'closed' ? ' row-closed' : (m.process_status === 'resolved' ? ' row-resolved' : '')}${selectedLtMachineIds.has(m.id) ? ' row-selected' : ''}" onclick="showLtMachineDetail(${m.id})">
+    <tr class="clickable-row${statusRowClass(m.process_status)}${selectedLtMachineIds.has(m.id) ? ' row-selected' : ''}" onclick="showLtMachineDetail(${m.id})">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedLtMachineIds.has(m.id) ? 'checked' : ''} onchange="toggleLtMachineSelect(${m.id}, this.checked)"></td>
       <td><strong>${escapeHtml(m.machine_name)}</strong></td>
       <td><span class="status-badge status-${escapeAttr(m.status)}">${STATUS_MAP.machine[m.status] || escapeHtml(m.status)}</span></td>
@@ -3730,7 +3748,7 @@ function renderLotHandoverTable() {
     const statusClass = h.status === 'closed' ? 'status-closed' : 'status-open';
     const statusLabel = h.status === 'closed' ? '已关闭' : (h.status === 'resolved' ? '已解决' : (h.status === 'in_progress' ? '处理中' : '待处理'));
     return `
-    <tr class="clickable-row${h.status === 'closed' ? ' row-closed' : (h.status === 'resolved' ? ' row-resolved' : '')}${selectedLotHIds.has(h.id) ? ' row-selected' : ''}" onclick="showLotHandoverDetail(${h.id})">
+    <tr class="clickable-row${statusRowClass(h.status)}${selectedLotHIds.has(h.id) ? ' row-selected' : ''}" onclick="showLotHandoverDetail(${h.id})">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedLotHIds.has(h.id) ? 'checked' : ''} onchange="toggleLotHSelect(${h.id}, this.checked)"></td>
       <td><strong>${escapeHtml(h.lot_id || '-')}</strong></td>
       <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
@@ -4946,7 +4964,7 @@ function renderDailyHandoverCards() {
     const overdue = h.due_date && h.due_date < today && h.status !== 'closed';
     const dueSoon = !overdue && h.due_date && h.due_date >= today && h.due_date <= soonDate;
     return `
-    <div class="handover-card priority-${h.priority}${h.status === 'closed' ? ' card-closed' : (h.status === 'resolved' ? ' card-resolved' : '')}" onclick="showDailyHandoverDetail(${h.id})" style="cursor:pointer;">
+    <div class="handover-card priority-${h.priority}${statusCardClass(h.status)}" onclick="showDailyHandoverDetail(${h.id})" style="cursor:pointer;">
       <div class="dh-card-top">
         <span class="tag tag-priority-${h.priority}">${STATUS_MAP.priority[h.priority] || h.priority}</span>
         <span class="tag tag-category-${h.category}">${STATUS_MAP.category[h.category] || h.category || '未分类'}</span>

@@ -492,8 +492,24 @@ kbd {
 .data-table tbody tr:hover { background: var(--bg-hover); }
 .data-table tbody tr:last-child td { border-bottom: none; }
 
-/* 完结态（已解决/已关闭）：背景与普通行完全一致，仅文字淡化退后 */
-/* 待处理/处理中不加重任何样式 = 最醒目 */
+/* ── 交接记录状态视觉层级 ──
+   待处理=最醒目（橙色警示光），处理中=次醒目（蓝色进行光），
+   已解决/已关闭=文字淡化退后，普通行无附加样式 */
+/* 待处理：橙色左条 + 暖色轻底 + 文字满亮度 */
+.data-table tbody tr.row-pending {
+  background: color-mix(in srgb, var(--accent-orange) 8%, transparent);
+}
+.data-table tbody tr.row-pending td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent-orange);
+}
+/* 处理中：蓝色左条 + 冷色轻底 */
+.data-table tbody tr.row-progress {
+  background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
+}
+.data-table tbody tr.row-progress td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent-blue);
+}
+/* 完结态（已解决/已关闭）：背景与普通行一致，仅文字淡化退后 */
 .data-table tbody tr.row-resolved td,
 .data-table tbody tr.row-resolved td strong,
 .data-table tbody tr.row-closed td,
@@ -694,7 +710,17 @@ kbd {
 }
 .handover-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
-/* ── 其他交接卡片完结态（与表格行同语言）：背景不变，仅文字淡化 ── */
+/* ── 其他交接卡片状态样式（与表格行同语言）──
+   状态用底色光区分；左边条保留给优先级（高=红/中=橙/低=绿），信息不互相覆盖 */
+/* 待处理：暖色轻底，最醒目 */
+.handover-card.card-pending {
+  background: color-mix(in srgb, var(--accent-orange) 7%, var(--bg-secondary));
+}
+/* 处理中：冷色轻底，次醒目 */
+.handover-card.card-progress {
+  background: color-mix(in srgb, var(--accent-blue) 5%, var(--bg-secondary));
+}
+/* 完结态：背景不变，仅文字淡化 */
 .handover-card.card-closed .handover-card-title,
 .handover-card.card-resolved .handover-card-title { color: var(--text-faint); }
 .handover-card.card-closed .handover-card-content,
