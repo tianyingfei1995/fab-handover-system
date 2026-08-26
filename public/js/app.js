@@ -1959,36 +1959,54 @@ async function loadMachines() {
   } catch (e) { console.error('Load machines error:', e); showToast('机台数据加载失败', 'error'); }
 }
 
-// 更新 Owner 下拉选项（去重）- 缓存列表避免每次按键重新计算
+// Owner 下拉来源：本部门人员名单（/api/sign-in-members，非admin仅本部门启用人员，admin返回全部）
 let _ownerListCache = [];
+let _ownerMembersCache = null;
 let _machineNameListCache = [];
 
 function getOwnerList() {
-  return _ownerListCache || [];
+  return (_ownerMembersCache || []).map(m => m.name);
+}
+
+// 加载本部门可用 Owner 名单
+async function loadOwnerMembers() {
+  try {
+    const members = await apiCall('GET', '/sign-in-members');
+    _ownerMembersCache = members.map(m => ({ name: m.name, employee_id: m.employee_id }));
+    renderOwnerDropdown('');
+    renderLtOwnerDropdown('');
+  } catch (e) { console.error('Load owner members error:', e); }
 }
 
 function updateOwnerList() {
-  _ownerListCache = [...new Set(machines.map(m => m.owner).filter(o => o && o.trim()))].sort();
   renderOwnerDropdown('');
 }
 
-// 渲染 Owner 下拉面板
+// Owner 合法性校验：有值时仅允许本部门在职人员（名单未加载时不拦截，避免误报）
+function isOwnerAllowed(owner) {
+  if (!owner) return true;
+  if (!_ownerMembersCache) return true;
+  return _ownerMembersCache.some(m => m.name === owner);
+}
+
+// 渲染 Owner 下拉面板（仅显示本部门人员）
 function renderOwnerDropdown(filter) {
   const dropdown = document.getElementById('ownerDropdown');
   if (!dropdown) return;
-  const owners = getOwnerList();
+  const list = _ownerMembersCache || [];
   const filtered = filter
-    ? owners.filter(o => o.toLowerCase().includes(filter.toLowerCase()))
-    : owners;
+    ? list.filter(m => m.name.toLowerCase().includes(filter.toLowerCase()))
+    : list;
 
   if (filtered.length === 0) {
-    dropdown.innerHTML = '<div class="owner-dropdown-empty">暂无 Owner 记录</div>';
+    dropdown.innerHTML = '<div class="owner-dropdown-empty">本部门暂无可选人员</div>';
     return;
   }
 
-  dropdown.innerHTML = filtered.map(o => `
-    <div class="owner-dropdown-item">
-      <span class="owner-name" onclick="selectOwner('${o.replace(/'/g, "\\'")}')">${escapeHtml(o)}</span>
+  dropdown.innerHTML = filtered.map(m => `
+    <div class="owner-dropdown-item" onclick="selectOwner('${m.name.replace(/'/g, "\\'")}')">
+      <span class="owner-name">${escapeHtml(m.name)}</span>
+      ${m.employee_id ? `<span class="owner-dropdown-sub">工号 ${escapeHtml(m.employee_id)}</span>` : ''}
     </div>
   `).join('');
 }
@@ -2055,16 +2073,25 @@ function renderMachineNameDropdown(filter) {
     return;
   }
 
-  dropdown.innerHTML = filtered.map(n => `
-    <div class="owner-dropdown-item">
-      <span class="owner-name" onclick="selectMachineName('${n.replace(/'/g, "\\'")}')">${escapeHtml(n)}</span>
-    </div>
-  `).join('');
+  dropdown.innerHTML = filtered.map(n => {
+    const mach = machines.find(m => m.machine_name === n);
+    const owner = mach && mach.owner ? mach.owner : '';
+    return `
+      <div class="owner-dropdown-item" onclick="selectMachineName('${n.replace(/'/g, "\\'")}')">
+        <span class="owner-name">${escapeHtml(n)}</span>
+        ${owner ? `<span class="owner-dropdown-sub">Owner: ${escapeHtml(owner)}</span>` : ''}
+      </div>
+    `;
+  }).join('');
 }
 
 function selectMachineName(name) {
   const input = document.getElementById('mMachineName');
   input.value = name;
+  const mach = machines.find(m => m.machine_name === name);
+  if (mach && mach.owner) {
+    document.getElementById('mOwner').value = mach.owner;
+  }
   document.getElementById('machineNameDropdown').classList.remove('active');
 }
 
@@ -2397,6 +2424,10 @@ async function saveMachine() {
     attachments: document.getElementById('mAttachments').value || ''
   };
   if (!data.machine_name) { showToast('请填写机台名称', 'error'); return; }
+  if (data.owner && !isOwnerAllowed(data.owner)) {
+    showToast('机台Owner应为所在部门在职人员，当前人员不在可选名单内', 'error');
+    return;
+  }
 
   // 乐观更新：先关闭弹窗并更新本地数据
   closeModal('machineModal');
@@ -2815,11 +2846,10 @@ async function loadLtMachines() {
 let _ltOwnerListCache = [];
 let _ltMachineNameListCache = [];
 
-function getLtOwnerList() { return _ltOwnerListCache || []; }
+function getLtOwnerList() { return getOwnerList(); }
 function getLtMachineNameList() { return _ltMachineNameListCache || []; }
 
 function updateLtOwnerList() {
-  _ltOwnerListCache = [...new Set(ltMachines.map(m => m.owner).filter(o => o && o.trim()))].sort();
   renderLtOwnerDropdown('');
 }
 
@@ -2831,12 +2861,13 @@ function updateLtMachineNameList() {
 function renderLtOwnerDropdown(filter) {
   const dropdown = document.getElementById('ltOwnerDropdown');
   if (!dropdown) return;
-  const owners = getLtOwnerList();
-  const filtered = filter ? owners.filter(o => o.toLowerCase().includes(filter.toLowerCase())) : owners;
-  if (filtered.length === 0) { dropdown.innerHTML = '<div class="owner-dropdown-empty">暂无 Owner 记录</div>'; return; }
-  dropdown.innerHTML = filtered.map(o => `
-    <div class="owner-dropdown-item">
-      <span class="owner-name" onclick="selectLtOwner('${o.replace(/'/g, "\\'")}')">${escapeHtml(o)}</span>
+  const list = _ownerMembersCache || [];
+  const filtered = filter ? list.filter(m => m.name.toLowerCase().includes(filter.toLowerCase())) : list;
+  if (filtered.length === 0) { dropdown.innerHTML = '<div class="owner-dropdown-empty">本部门暂无可选人员</div>'; return; }
+  dropdown.innerHTML = filtered.map(m => `
+    <div class="owner-dropdown-item" onclick="selectLtOwner('${m.name.replace(/'/g, "\\'")}')">
+      <span class="owner-name">${escapeHtml(m.name)}</span>
+      ${m.employee_id ? `<span class="owner-dropdown-sub">工号 ${escapeHtml(m.employee_id)}</span>` : ''}
     </div>
   `).join('');
 }
@@ -2852,15 +2883,24 @@ function renderLtMachineNameDropdown(filter) {
   const names = getLtMachineNameList();
   const filtered = filter ? names.filter(n => n.toLowerCase().includes(filter.toLowerCase())) : names;
   if (filtered.length === 0) { dropdown.innerHTML = '<div class="owner-dropdown-empty">暂无机台名称记录</div>'; return; }
-  dropdown.innerHTML = filtered.map(n => `
-    <div class="owner-dropdown-item">
-      <span class="owner-name" onclick="selectLtMachineName('${n.replace(/'/g, "\\'")}')">${escapeHtml(n)}</span>
-    </div>
-  `).join('');
+  dropdown.innerHTML = filtered.map(n => {
+    const mach = ltMachines.find(m => m.machine_name === n);
+    const owner = mach && mach.owner ? mach.owner : '';
+    return `
+      <div class="owner-dropdown-item" onclick="selectLtMachineName('${n.replace(/'/g, "\\'")}')">
+        <span class="owner-name">${escapeHtml(n)}</span>
+        ${owner ? `<span class="owner-dropdown-sub">Owner: ${escapeHtml(owner)}</span>` : ''}
+      </div>
+    `;
+  }).join('');
 }
 
 function selectLtMachineName(name) {
   document.getElementById('ltMMachineName').value = name;
+  const mach = ltMachines.find(m => m.machine_name === name);
+  if (mach && mach.owner) {
+    document.getElementById('ltMOwner').value = mach.owner;
+  }
   document.getElementById('ltMachineNameDropdown').classList.remove('active');
 }
 
@@ -3133,6 +3173,10 @@ async function saveLtMachine() {
     attachments: document.getElementById('ltMFromAttachments').value || ''
   };
   if (!data.machine_name) { showToast('请填写机台名称', 'error'); return; }
+  if (data.owner && !isOwnerAllowed(data.owner)) {
+    showToast('机台Owner应为所在部门在职人员，当前人员不在可选名单内', 'error');
+    return;
+  }
 
   closeModal('ltMachineModal');
   const isEdit = !!id;
@@ -5579,7 +5623,7 @@ async function init() {
   const loggedIn = await checkSession();
   if (!loggedIn) return;
   await loadDepartments();
-  await Promise.all([loadMachines(), loadLtMachines(), loadDailyHandovers(), loadLotHandovers(), loadSignInEngineers(), loadSignInSheets(), loadDutyIssues(), loadArHandovers(), loadDashboard()]);
+  await Promise.all([loadMachines(), loadLtMachines(), loadDailyHandovers(), loadLotHandovers(), loadSignInEngineers(), loadSignInSheets(), loadDutyIssues(), loadArHandovers(), loadDashboard(), loadOwnerMembers()]);
   // 数据加载完成后应用表格权限控制
   applyTableActionPermissions();
   // 管理员检查清理预告通知
