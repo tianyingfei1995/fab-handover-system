@@ -1538,20 +1538,6 @@ function exportAttachNames(str) {
   } catch (e) { return ''; }
 }
 
-// 读取图片文件为 base64（找不到文件时返回 null）
-function exportReadImage(relPath) {
-  try {
-    const clean = String(relPath).replace(/^\/uploads\//, '');
-    const abs = path.join(UPLOAD_DIR, clean);
-    if (!abs.startsWith(UPLOAD_DIR) || !fs.existsSync(abs) || !fs.statSync(abs).isFile()) return null;
-    const ext = path.extname(abs).toLowerCase().replace('.', '');
-    const extMap = { png: 'png', jpg: 'jpeg', jpeg: 'jpeg', gif: 'gif', bmp: 'gif', webp: 'gif' };
-    const xlExt = extMap[ext];
-    if (!xlExt) return null; // Excel 仅支持 png/jpeg/gif
-    return { base64: fs.readFileSync(abs).toString('base64'), ext: xlExt };
-  } catch (e) { return null; }
-}
-
 // 各模块导出配置：sheet 名、SQL、行数据构造（返回普通单元格值数组 + 图片路径列表）
 const EXPORT_MODULES = [
   {
@@ -1636,19 +1622,15 @@ const EXPORT_MODULES = [
   }
 ];
 
-// 图片嵌入尺寸（px，等比缩放至该框内）
-const EXPORT_IMG_BOX = { w: 150, h: 100 };
+// 图片以超链接形式展示（点击打开服务器上的原图）
 const EXPORT_IMG_COL_WIDTH = 22;   // 图片列宽（字符）
-const EXPORT_IMG_ROW_HEIGHT = 78;  // 含图片行高（pt）
-// 图片列/行的 EMU 尺寸（绕过 ExcelJS 小数锚点的错误换算：列宽字符×10000 ≠ 真实EMU）
-const EMU_PER_PX = 9525;
-const EXPORT_IMG_COL_EMU = Math.round((Math.round(EXPORT_IMG_COL_WIDTH * 7 + 5) - 12)) * EMU_PER_PX; // 列宽px减边距
-const EXPORT_IMG_ROW_EMU = Math.round(EXPORT_IMG_ROW_HEIGHT * 12700) - 8 * EMU_PER_PX;               // 行高EMU减边距
 
 app.get('/api/export/excel', authMiddleware, async (req, res) => {
   try {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'FAB 生产日常交接系统';
+    // 图片完整 URL 前缀（Excel 中点击直接打开）
+    const host = req.headers.host || `localhost:${PORT}`;
 
     for (const mod of EXPORT_MODULES) {
       const rows = db.prepare(`${mod.sql}${deptWhere(req)} ORDER BY id DESC`).all(...deptParam(req));
@@ -1669,20 +1651,11 @@ app.get('/api/export/excel', authMiddleware, async (req, res) => {
         const imgPaths = mod.images(r);
         const row = ws.addRow(mod.row(r));
         row.alignment = { vertical: 'middle', wrapText: true };
-        if (imgPaths.length > 0) row.height = EXPORT_IMG_ROW_HEIGHT;
 
         imgPaths.forEach((p, pi) => {
-          const img = exportReadImage(p);
-          if (!img) return;
-          const imgId = wb.addImage({ base64: img.base64, extension: img.ext });
-          const colIdx = mod.columns.length + pi; // 0 基列号
-          // 原生 EMU 锚点（twoCellAnchor）：ExcelJS 的小数锚点会按「字符宽×10000」错误换算，
-          // 导致图片被压成 ~21px 细条；这里直接给 EMU 偏移，图片铺满图片列单元格
-          ws.addImage(imgId, {
-            tl: { nativeCol: colIdx, nativeColOff: 6 * EMU_PER_PX, nativeRow: ri + 1, nativeRowOff: 4 * EMU_PER_PX },
-            br: { nativeCol: colIdx, nativeColOff: 6 * EMU_PER_PX + EXPORT_IMG_COL_EMU, nativeRow: ri + 1, nativeRowOff: 4 * EMU_PER_PX + EXPORT_IMG_ROW_EMU },
-            editAs: 'oneCell'
-          });
+          const cell = row.getCell(mod.columns.length + pi + 1); // 1 基列号
+          cell.value = { text: `图片${pi + 1}`, hyperlink: `http://${host}${p}` };
+          cell.font = { color: { argb: 'FF0563C1' }, underline: true };
         });
       });
       if (rows.length === 0) ws.addRow(['（暂无数据）']);
