@@ -2631,8 +2631,6 @@ function filteredArIds() {
   const statusFilter = document.getElementById('arHandoverStatusFilter').value;
   const ownerEl = document.getElementById('arHandoverOwnerFilter');
   const ownerFilter = ownerEl ? ownerEl.value : '';
-  const dateEl = document.getElementById('arHandoverDateFilter');
-  const dateFilter = dateEl ? dateEl.value : '';
   let filtered = arHandovers.filter(a => {
     const matchSearch = !search ||
       stripHtml(a.ar).toLowerCase().includes(search) ||
@@ -2641,8 +2639,7 @@ function filteredArIds() {
       (a.due_date || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || a.status === statusFilter;
     const matchOwner = !ownerFilter || (a.owner_section || '') === ownerFilter;
-    const matchDate = !dateFilter || (a.date || '').startsWith(dateFilter);
-    return matchSearch && matchStatus && matchOwner && matchDate;
+    return matchSearch && matchStatus && matchOwner;
   });
   filtered = applyArSort(filtered);
   _cachedArFilteredIds = filtered.map(a => a.id);
@@ -2710,11 +2707,9 @@ function renderArHandoverTable() {
   const searchEl = document.getElementById('arHandoverSearch');
   const statusEl = document.getElementById('arHandoverStatusFilter');
   const ownerEl = document.getElementById('arHandoverOwnerFilter');
-  const dateEl = document.getElementById('arHandoverDateFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const statusFilter = statusEl ? statusEl.value : '';
   const ownerFilter = ownerEl ? ownerEl.value : '';
-  const dateFilter = dateEl ? dateEl.value : '';
 
   let filtered = arHandovers.filter(a => {
     const matchSearch = !search ||
@@ -2724,8 +2719,7 @@ function renderArHandoverTable() {
       (a.due_date || '').toLowerCase().includes(search);
     const matchStatus = !statusFilter || a.status === statusFilter;
     const matchOwner = !ownerFilter || (a.owner_section || '') === ownerFilter;
-    const matchDate = !dateFilter || (a.date || '').startsWith(dateFilter);
-    return matchSearch && matchStatus && matchOwner && matchDate;
+    return matchSearch && matchStatus && matchOwner;
   });
 
   filtered = applyArSort(filtered);
@@ -3845,16 +3839,15 @@ function renderSignInTable() {
     let attendeesText = '';
     try { attendeesText = typeof s.attendees === 'string' ? s.attendees : ''; } catch(e) {}
     const matchSearch = !search ||
-      (s.shift_time || '').toLowerCase().includes(search) ||
-      (s.location || '').toLowerCase().includes(search) ||
-      (s.host || '').toLowerCase().includes(search) ||
-      attendeesText.toLowerCase().includes(search) ||
-      (s.updated_at || '').toLowerCase().includes(search);
-    const matchShift = !shiftFilter || (s.shift_time || '').includes(shiftFilter);
-    const matchHost = !hostFilter || (s.host || '') === hostFilter;
-    const matchDate = !dateFilter || (s.shift_time || '').startsWith(dateFilter);
-    return matchSearch && matchShift && matchHost && matchDate;
-  });
+        (s.shift_time || '').toLowerCase().includes(search) ||
+        (s.location || '').toLowerCase().includes(search) ||
+        (s.host || '').toLowerCase().includes(search) ||
+        attendeesText.toLowerCase().includes(search);
+      const matchShift = !shiftFilter || (s.shift_time || '').includes(shiftFilter);
+      const matchHost = !hostFilter || (s.host || '') === hostFilter;
+      const matchDate = !dateFilter || (s.shift_time || '').startsWith(dateFilter);
+      return matchSearch && matchShift && matchHost && matchDate;
+    });
 
   filtered = applySignInSort(filtered);
 
@@ -3902,8 +3895,7 @@ function toggleSignInSelectAll(checked) {
         (s.shift_time || '').toLowerCase().includes(search) ||
         (s.location || '').toLowerCase().includes(search) ||
         (s.host || '').toLowerCase().includes(search) ||
-        attendeesText.toLowerCase().includes(search) ||
-        (s.updated_at || '').toLowerCase().includes(search);
+        attendeesText.toLowerCase().includes(search);
       const matchShift = !shiftFilter || (s.shift_time || '').includes(shiftFilter);
       const matchHost = !hostFilter || (s.host || '') === hostFilter;
       const matchDate = !dateFilter || (s.shift_time || '').startsWith(dateFilter);
@@ -5154,7 +5146,6 @@ document.getElementById('signInDateFilter').addEventListener('change', renderSig
 document.getElementById('dutyIssueConfirmFilter').addEventListener('change', renderDutyIssueTable);
 document.getElementById('dutyIssueDateFilter').addEventListener('change', renderDutyIssueTable);
 document.getElementById('arHandoverOwnerFilter').addEventListener('change', () => { _cachedArFilteredIds = null; renderArHandoverTable(); });
-document.getElementById('arHandoverDateFilter').addEventListener('change', () => { _cachedArFilteredIds = null; renderArHandoverTable(); });
 document.getElementById('dailyHandoverCategoryFilter').addEventListener('change', renderDailyHandoverCards);
 document.getElementById('dailyHandoverCreatedByFilter').addEventListener('change', renderDailyHandoverCards);
 
@@ -5228,8 +5219,6 @@ function resetArHandoverFilters() {
   document.getElementById('arHandoverStatusFilter').value = '';
   const of = document.getElementById('arHandoverOwnerFilter');
   if (of) of.value = '';
-  const df = document.getElementById('arHandoverDateFilter');
-  if (df) df.value = '';
   _cachedArFilteredIds = null;
   renderArHandoverTable();
 }
