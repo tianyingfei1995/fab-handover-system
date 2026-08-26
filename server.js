@@ -1672,9 +1672,10 @@ app.get('/api/export/excel', authMiddleware, async (req, res) => {
           if (!img) return;
           const imgId = wb.addImage({ base64: img.base64, extension: img.ext });
           const colIdx = mod.columns.length + pi; // 0 基列号
+          // 双锚点（twoCellAnchor）+ 单元格内边距，兼容 WPS/移动端等查看器
           ws.addImage(imgId, {
-            tl: { col: colIdx, row: ri + 1 }, // 表头为第 0 行
-            ext: { width: EXPORT_IMG_BOX.w, height: EXPORT_IMG_BOX.h },
+            tl: { col: colIdx + 0.05, row: ri + 1.05 }, // 表头为第 0 行
+            br: { col: colIdx + 0.95, row: ri + 1.95 },
             editAs: 'oneCell'
           });
         });
