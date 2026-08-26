@@ -2161,16 +2161,53 @@ function renderAlerts() {
     alertList.innerHTML = '<div class="empty-state">暂无高优先级事项</div>';
     return;
   }
-  alertList.innerHTML = highPriority.map(h => `
-    <div class="alert-item" onclick="showDailyHandoverDetail(${h.id})" style="cursor:pointer" title="点击查看详情">
+  // 按紧迫度排序：已逾期 > 今日到期 > 即将到期 > 无到期日
+  const urgency = (h) => {
+    const d = h.due_date ? new Date(h.due_date + 'T00:00:00') : null;
+    if (!d || isNaN(d)) return { level: 3, days: null };
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const days = Math.round((d - today) / 86400000);
+    if (days < 0) return { level: 0, days };
+    if (days === 0) return { level: 1, days };
+    return { level: 2, days };
+  };
+  const sorted = highPriority
+    .map(h => ({ h, u: urgency(h) }))
+    .sort((a, b) => a.u.level - b.u.level || (a.u.days ?? 0) - (b.u.days ?? 0))
+    .map(x => x.h);
+  alertList.innerHTML = sorted.map(h => {
+    const u = urgency(h);
+    // 到期徽标：逾期红色实底、今日橙色、将来蓝色描边、无日期显示创建日
+    let dueBadge;
+    if (u.days !== null && u.days < 0) {
+      dueBadge = `<span class="alert-due-badge overdue">已逾期 ${-u.days} 天</span>`;
+    } else if (u.days === 0) {
+      dueBadge = `<span class="alert-due-badge today">今日到期</span>`;
+    } else if (u.days !== null) {
+      dueBadge = `<span class="alert-due-badge upcoming">${u.days} 天后到期</span>`;
+    } else {
+      dueBadge = `<span class="alert-due-badge none">创建于 ${escapeHtml((h.created_at || '').substring(0, 10))}</span>`;
+    }
+    const statusLabel = h.status === 'in_progress' ? '处理中' : '待处理';
+    const statusClass = h.status === 'in_progress' ? 'progress' : 'pending';
+    const urgencyClass = u.days !== null && u.days < 0 ? 'is-overdue' : (u.days === 0 ? 'is-today' : 'is-upcoming');
+    const desc = stripHtml(h.content);
+    return `
+    <div class="alert-item ${urgencyClass}" onclick="showDailyHandoverDetail(${h.id})" style="cursor:pointer" title="点击查看详情">
       <div class="alert-priority high"></div>
       <div class="alert-content">
-        <div class="alert-title">${stripHtml(h.title)}</div>
-        <div class="alert-desc">${stripHtml(h.content).substring(0, 80)}${stripHtml(h.content).length > 80 ? '...' : ''}</div>
+        <div class="alert-title-row">
+          <span class="alert-title">${stripHtml(h.title)}</span>
+          <span class="alert-status ${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="alert-desc">${desc}</div>
+        <div class="alert-meta">
+          ${dueBadge}
+          ${h.due_date ? `<span class="alert-date">${escapeHtml(h.due_date)}</span>` : ''}
+        </div>
       </div>
-      <div class="alert-date">${escapeHtml(h.due_date || (h.created_at ? h.created_at.substring(0, 10) : ''))}</div>
     </div>
-  `).join('');
+  `; }).join('');
 }
 
 // ===== 机台状态 CRUD =====
