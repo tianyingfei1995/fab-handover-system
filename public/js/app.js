@@ -817,6 +817,8 @@ async function doLogin() {
     if (typeof init === 'function') await init();
   } catch (e) {
     errorEl.textContent = '网络错误，请稍后重试';
+  } finally {
+    // 无论成败都恢复按钮，避免退出登录后按钮仍停留在禁用/“登录中...”状态
     btn.disabled = false;
     btn.textContent = '登 录';
   }
