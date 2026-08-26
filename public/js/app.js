@@ -4111,6 +4111,16 @@ function editSignInSheet(id) {
   document.getElementById('siShiftType').value = shiftParts.type;
   document.getElementById('siLocation').value = s.location || '';
   document.getElementById('siHost').value = s.host || '';
+  // 历史主持人若已不在本部门名单内：补一个禁用项用于回显（保存时自动清除）
+  const hostSelect = document.getElementById('siHost');
+  if (s.host && ![...hostSelect.options].some(o => o.value === s.host)) {
+    const opt = document.createElement('option');
+    opt.value = s.host;
+    opt.textContent = `${s.host}（非本部门）`;
+    opt.disabled = true;
+    hostSelect.appendChild(opt);
+    hostSelect.value = s.host;
+  }
   currentAttendees = parseAttendees(s.attendees);
   if (currentAttendees.length === 0) {
     currentAttendees = getEngineerList().map(name => ({ engineer: name, status: 'present' }));
@@ -4150,25 +4160,27 @@ function renderAttendeeTable() {
     tbody.innerHTML = `<tr><td colspan="4" class="empty-state">暂无人员，点击"添加人员"</td></tr>`;
     return;
   }
-  // 本部门成员：姓名（工号）
+  // 本部门成员：姓名（工号）；只能选择本部门人员
   const members = signInEngineers;
   const knownNames = new Set(members.map(m => m.name));
-  // 历史数据可能含已不在本部门名单内的人员，需保留其姓名以便回显
-  const extras = new Set();
-  currentAttendees.forEach(a => { if (a.engineer && !knownNames.has(a.engineer)) extras.add(a.engineer); });
   const baseOpts = members.map(m =>
     `<option value="${escapeAttr(m.name)}">${escapeHtml(m.name)}${m.employee_id ? ' · ' + escapeHtml(m.employee_id) : ''}</option>`
   ).join('');
-  const extraOpts = Array.from(extras).map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
 
-  tbody.innerHTML = currentAttendees.map((a, i) => `
+  tbody.innerHTML = currentAttendees.map((a, i) => {
+    // 历史数据中已不在本部门名单内的人员：仅回显（禁用不可选），保存时自动移除
+    const isExtra = a.engineer && !knownNames.has(a.engineer);
+    const ownOpt = isExtra
+      ? `<option value="${escapeAttr(a.engineer)}" selected disabled>${escapeHtml(a.engineer)}（非本部门）</option>`
+      : '';
+    return `
     <tr>
       <td class="attendee-idx">${i + 1}</td>
       <td>
         <div class="attendee-field">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" class="attendee-field-icn"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <select class="attendee-select attendee-name-select" onchange="updateAttendee(${i}, 'engineer', this.value)">
-            <option value="">请选择人员</option>${baseOpts}${extraOpts}
+            <option value="">请选择人员</option>${ownOpt}${baseOpts}
           </select>
         </div>
       </td>
@@ -4184,8 +4196,8 @@ function renderAttendeeTable() {
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
   // 回填当前选择
   document.querySelectorAll('.attendee-name-select').forEach((sel, i) => {
     if (currentAttendees[i] && currentAttendees[i].engineer) sel.value = currentAttendees[i].engineer;
@@ -4228,12 +4240,27 @@ async function saveSignInSheet() {
   const siType = document.getElementById('siShiftType').value || '白班';
   const shift_time = `${siDate} ${siType}`;
   const location = document.getElementById('siLocation').value.trim();
-  const host = document.getElementById('siHost').value.trim();
+  let host = document.getElementById('siHost').value.trim();
 
   // ★ 捕获快照，防止 await 期间 currentAttendees 被 openSignInModal() 覆盖
   const attendeesSnapshot = currentAttendees.map(a => ({ engineer: a.engineer, status: a.status }));
 
-  const attendees = JSON.stringify(attendeesSnapshot.filter(a => a.engineer.trim()));
+  // 人员限制：主持人/到会人员只能是本部门人员，历史数据中的非本部门人员保存时自动移除
+  const memberNames = new Set(signInEngineers.map(m => m.name));
+  const removedNames = [];
+  if (memberNames.size > 0) {
+    if (host && !memberNames.has(host)) { removedNames.push(`主持人 ${host}`); host = ''; }
+  }
+  const validAttendees = attendeesSnapshot.filter(a => {
+    const n = (a.engineer || '').trim();
+    if (!n) return false;
+    if (memberNames.size > 0 && !memberNames.has(n)) { removedNames.push(n); return false; }
+    return true;
+  });
+  if (removedNames.length) {
+    showToast(`已移除非本部门人员：${removedNames.join('、')}`, 'info');
+  }
+  const attendees = JSON.stringify(validAttendees);
 
   if (!shift_time) { showToast('请选择时间', 'error'); return; }
 

@@ -1181,7 +1181,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
  * @param {boolean} opts.hasBatchStatus 是否支持批量更新 process_status
  */
 function registerCrudRoutes(opts) {
-  const { basePath, table, module, fields, hasBatchStatus, hasCreatedBy } = opts;
+  const { basePath, table, module, fields, hasBatchStatus, hasCreatedBy, validate } = opts;
 
   // 读取该表实际存在的列，写入前过滤，避免因数据库 schema 漂移（如缺少某列）导致 INSERT/UPDATE 对所有人全部失败
   const tableCols = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name));
@@ -1203,6 +1203,11 @@ function registerCrudRoutes(opts) {
       // 部门隔离：非 admin 由服务端强制写入归属部门，禁止客户端篡改；admin 创建默认归属「公共」
       if (tableCols.has('department')) {
         data.department = isAdminUser(req) ? (req.body.department !== undefined ? req.body.department : '公共') : req.user.department;
+      }
+      // 业务校验（可选钩子）
+      if (validate) {
+        const err = validate(req, data);
+        if (err) return res.status(400).json({ error: err });
       }
       // 自动填充创建人
       if (hasCreatedBy && tableCols.has('created_by')) {
@@ -1230,6 +1235,11 @@ function registerCrudRoutes(opts) {
       const data = {};
       for (const f of fields) {
         if (req.body[f] !== undefined && tableCols.has(f)) data[f] = req.body[f];
+      }
+      // 业务校验（可选钩子）
+      if (validate) {
+        const err = validate(req, data);
+        if (err) return res.status(400).json({ error: err });
       }
       const cols = Object.keys(data);
       if (cols.length === 0) return res.status(400).json({ error: `无有效字段，允许的字段: ${fields.join(', ')}` });
@@ -1496,13 +1506,36 @@ registerCrudRoutes({
   hasCreatedBy: true
 });
 
+// 交接签到表：主持人/到会人员只能是本部门人员（admin 允许全部启用人员）
+function signInAllowedNames(req) {
+  const rows = isAdminUser(req)
+    ? db.prepare("SELECT name FROM users WHERE status = 'active' AND role != 'admin'").all()
+    : db.prepare("SELECT name FROM users WHERE status = 'active' AND role != 'admin' AND department = ?").all(req.user.department);
+  return new Set(rows.map(r => r.name));
+}
+
+function validateSignInPersonnel(req, data) {
+  if (data.host === undefined && data.attendees === undefined) return null;
+  const allowed = signInAllowedNames(req);
+  if (data.host && !allowed.has(data.host)) return `主持人「${data.host}」不在本部门人员名单内，只能选择本部门人员`;
+  if (data.attendees !== undefined && data.attendees !== '') {
+    let list;
+    try { list = JSON.parse(data.attendees); } catch (e) { return '到会人员数据格式错误'; }
+    if (!Array.isArray(list)) return '到会人员数据格式错误';
+    const bad = list.map(a => a && a.engineer ? String(a.engineer).trim() : '').filter(n => n && !allowed.has(n));
+    if (bad.length) return `到会人员 ${bad.map(n => `「${n}」`).join('、')} 不在本部门人员名单内，只能选择本部门人员`;
+  }
+  return null;
+}
+
 // 交接签到表
 registerCrudRoutes({
   basePath: '/api/sign-in-sheets',
   table: 'sign_in_sheets',
   module: 'sign-in',
   fields: ['shift_time', 'location', 'host', 'attendees'],
-  hasBatchStatus: false
+  hasBatchStatus: false,
+  validate: validateSignInPersonnel
 });
 
 // 值班问题
