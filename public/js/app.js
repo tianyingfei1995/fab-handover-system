@@ -4799,8 +4799,11 @@ function renderDailyHandoverCards() {
 
   if (filtered.length === 0) {
     grid.innerHTML = `<div class="empty-state">暂无其他交接事项，点击"新增交接"添加${filterResetLinkHtml('resetDailyHandoverFilters')}</div>`;
+    renderDhStatBar(filtered);
     return;
   }
+
+  renderDhStatBar(filtered);
 
   renderBatchedRows(grid, filtered, h => {
     const imgs = parseImagePaths(h.image_path);
@@ -4810,30 +4813,53 @@ function renderDailyHandoverCards() {
            ${imgs.length > 1 ? `<span class="handover-card-img-count">${imgs.length}</span>` : ''}
          </div>`
       : '';
+    // 逾期判断：已过截止日期且未关闭；临期：2天内到期
+    const today = new Date().toISOString().substring(0, 10);
+    const soonDate = new Date(Date.now() + 2 * 86400000).toISOString().substring(0, 10);
+    const overdue = h.due_date && h.due_date < today && h.status !== 'closed';
+    const dueSoon = !overdue && h.due_date && h.due_date >= today && h.due_date <= soonDate;
     return `
     <div class="handover-card priority-${h.priority}${h.status === 'closed' ? ' card-closed' : ''}" onclick="showDailyHandoverDetail(${h.id})" style="cursor:pointer;">
-      <div class="handover-card-header">
-        <div class="handover-card-title cell-html">${sanitizeHtml(h.title)}</div>
-        <div class="handover-card-tags">
-          <span class="tag tag-${h.priority}">${STATUS_MAP.priority[h.priority]}</span>
-          <span class="tag tag-${h.category}">${STATUS_MAP.category[h.category]}</span>
-          <span class="status-badge status-${h.status}" style="font-size:11px;">${STATUS_MAP.handover[h.status]}</span>
-        </div>
+      <div class="dh-card-top">
+        <span class="tag tag-priority-${h.priority}">${STATUS_MAP.priority[h.priority] || h.priority}</span>
+        <span class="tag tag-category-${h.category}">${STATUS_MAP.category[h.category] || h.category || '未分类'}</span>
+        <span class="status-badge status-${h.status}">${STATUS_MAP.handover[h.status] || h.status}</span>
+        ${overdue ? '<span class="dh-overdue-badge">已逾期</span>' : (dueSoon ? '<span class="dh-due-soon-badge">临期</span>' : '')}
       </div>
-      <div class="handover-card-content cell-html">${sanitizeHtml(h.content) || '无详细内容'}</div>
+      <div class="dh-card-title cell-html">${sanitizeHtml(h.title)}</div>
+      <div class="dh-card-content cell-html">${sanitizeHtml(h.content) || '无详细内容'}</div>
       ${imageHtml}
-      <div class="handover-card-footer">
-        <div class="handover-meta">
-          ${h.created_by ? `<span>创建人: ${escapeHtml(h.created_by)}</span>` : ''}
-          ${h.due_date ? `<span>截止: ${escapeHtml(h.due_date)}</span>` : ''}
-          <span>${h.created_at ? h.created_at.substring(0, 10) : ''}</span>
+      <div class="dh-card-footer">
+        <div class="dh-meta">
+          ${h.created_by ? `<span class="dh-meta-item" title="创建人"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>${escapeHtml(h.created_by)}</span>` : ''}
+          ${h.due_date ? `<span class="dh-meta-item${overdue ? ' dh-meta-overdue' : ''}" title="截止日期"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${escapeHtml(h.due_date)}</span>` : ''}
+          <span class="dh-meta-item" title="创建时间"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${h.created_at ? h.created_at.substring(0, 10) : '-'}</span>
         </div>
-        <div class="handover-card-actions">
+        <div class="handover-card-actions" onclick="event.stopPropagation()">
           ${actionButtonsHtml('daily-handover', h.id, 'editDailyHandover', 'deleteDailyHandover')}
         </div>
       </div>
     </div>
   `});
+}
+
+// 统计条：按当前筛选结果统计各状态/优先级数量
+function renderDhStatBar(filtered) {
+  const bar = document.getElementById('dhStatBar');
+  if (!bar) return;
+  const count = (fn) => filtered.filter(fn).length;
+  const highOpen = count(h => h.priority === 'high' && h.status !== 'closed');
+  const chips = [
+    { label: '共', n: filtered.length, cls: '' },
+    { label: '待处理', n: count(h => h.status === 'open'), cls: 'dh-chip-open' },
+    { label: '处理中', n: count(h => h.status === 'in_progress'), cls: 'dh-chip-progress' },
+    { label: '已解决', n: count(h => h.status === 'resolved'), cls: 'dh-chip-resolved' },
+    { label: '已关闭', n: count(h => h.status === 'closed'), cls: 'dh-chip-closed' },
+  ];
+  if (highOpen > 0) chips.push({ label: '高优先级未关闭', n: highOpen, cls: 'dh-chip-high' });
+  bar.innerHTML = chips.map(c =>
+    `<span class="dh-chip${c.cls ? ' ' + c.cls : ''}">${c.label}<b>${c.n}</b></span>`
+  ).join('');
 }
 
 // 其他交接详情弹窗

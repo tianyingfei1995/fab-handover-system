@@ -2444,3 +2444,167 @@ html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 [data-theme="noir"] .data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected) {
   background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
 }
+
+/* ═══════════════════════════════════════════════════════
+   其他交接页 · 重新设计层
+   ═══════════════════════════════════════════════════════ */
+
+/* 工具栏分区竖线：筛选区与操作区视觉分组 */
+.toolbar-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* ─── 统计条：状态分布胶囊，随筛选联动 ─── */
+.dh-stat-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.dh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+.dh-chip b {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.dh-chip-open      { border-color: color-mix(in srgb, var(--accent-orange) 35%, var(--border)); background: color-mix(in srgb, var(--accent-orange) 8%, var(--bg-secondary)); }
+.dh-chip-open b      { color: var(--accent-orange); }
+.dh-chip-progress  { border-color: color-mix(in srgb, var(--accent-blue) 35%, var(--border)); background: color-mix(in srgb, var(--accent-blue) 8%, var(--bg-secondary)); }
+.dh-chip-progress b  { color: var(--accent-blue); }
+.dh-chip-resolved  { border-color: color-mix(in srgb, var(--accent-green) 35%, var(--border)); background: color-mix(in srgb, var(--accent-green) 8%, var(--bg-secondary)); }
+.dh-chip-resolved b  { color: var(--accent-green); }
+.dh-chip-closed    { opacity: 0.65; }
+.dh-chip-high {
+  border-color: color-mix(in srgb, var(--accent-red) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent-red) 9%, var(--bg-secondary));
+  animation: dhChipPulse 2.2s ease-in-out infinite;
+}
+.dh-chip-high b { color: var(--accent-red); }
+@keyframes dhChipPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-red) 30%, transparent); }
+  50%      { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent-red) 0%, transparent); }
+}
+
+/* ─── 标签基础样式（优先级/分类，此前缺失） ─── */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.tag-priority-high   { background: color-mix(in srgb, var(--accent-red) 14%, transparent); color: var(--accent-red); }
+.tag-priority-medium { background: color-mix(in srgb, var(--accent-orange) 16%, transparent); color: var(--accent-orange); }
+.tag-priority-low    { background: color-mix(in srgb, var(--accent-green) 14%, transparent); color: var(--accent-green); }
+.tag-category-equipment { background: color-mix(in srgb, var(--accent-blue) 12%, transparent); color: var(--accent-blue); }
+.tag-category-process   { background: color-mix(in srgb, var(--accent-purple) 12%, transparent); color: var(--accent-purple); }
+.tag-category-quality   { background: color-mix(in srgb, var(--accent-orange) 12%, transparent); color: var(--accent-orange); }
+.tag-category-safety    { background: color-mix(in srgb, var(--accent-red) 12%, transparent); color: var(--accent-red); }
+.tag-category-other     { background: var(--bg-tertiary); color: var(--text-secondary); }
+
+/* ─── 卡片顶部标签行 ─── */
+.dh-card-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.dh-card-top .status-badge { margin-left: auto; font-size: 11px; }
+
+/* 逾期/临期徽标 */
+.dh-overdue-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  animation: dhChipPulse 2.2s ease-in-out infinite;
+}
+.dh-due-soon-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-orange) 18%, transparent);
+  color: var(--accent-orange);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* ─── 卡片标题/内容 ─── */
+.dh-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.dh-card-content {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  max-height: 88px;
+  overflow-y: auto;
+  line-height: 1.6;
+  word-break: break-word;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.dh-card-content::-webkit-scrollbar { width: 5px; }
+.dh-card-content::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+/* ─── 卡片底部：元信息 + 操作 ─── */
+.dh-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.handover-card { display: flex; flex-direction: column; }
+.dh-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.dh-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.dh-meta-item svg { opacity: 0.7; }
+.dh-meta-overdue { color: var(--accent-red); font-weight: 600; }
+
+/* ─── 卡片左侧优先级色条（替代旧的纯类名标记） ─── */
+.handover-card.priority-high   { border-left: 3px solid var(--accent-red); }
+.handover-card.priority-medium { border-left: 3px solid var(--accent-orange); }
+.handover-card.priority-low    { border-left: 3px solid var(--accent-green); }
+.handover-card.card-closed     { border-left-color: var(--border-strong); }
