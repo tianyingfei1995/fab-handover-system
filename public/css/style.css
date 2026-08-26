@@ -2358,7 +2358,12 @@ html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
   background: color-mix(in srgb, var(--bg-tertiary) 70%, var(--bg-secondary));
 }
 /* 斑马纹交替背景已移除：所有行统一底色，仅靠行边框区分 */
-.data-table tbody tr.clickable-row { transition: background 0.12s ease; }
+/* 行 hover 特效：左侧滑入蓝色指示条 + 背景提亮（已解决/已关闭行用各自状态色的 hover 底） */
+.data-table tbody tr.clickable-row { transition: background 0.15s ease; }
+.data-table tbody tr.clickable-row td:first-child { transition: box-shadow 0.15s ease; }
+.data-table tbody tr.clickable-row:hover:not(.row-selected) td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent-blue);
+}
 .data-table tbody tr.clickable-row:hover:not(.row-selected):not(.row-closed):not(.row-resolved) {
   background: color-mix(in srgb, var(--accent-blue) 7%, var(--bg-hover));
 }
