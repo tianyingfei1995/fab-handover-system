@@ -492,17 +492,27 @@ kbd {
 .data-table tbody tr:hover { background: var(--bg-hover); }
 .data-table tbody tr:last-child td { border-bottom: none; }
 
-/* 处理状态=已关闭：整行暗色透明 */
+/* 处理状态=已关闭：档案化整行样式（灰底+左灰条+文字淡化，醒目识别但不抢注意力） */
 .data-table tbody tr.row-closed {
-  opacity: 0.55;
-  background: color-mix(in srgb, var(--bg-tertiary) 82%, var(--text-primary) 8%);
+  background: color-mix(in srgb, var(--bg-secondary) 90%, var(--text-primary) 7%);
+  box-shadow: inset 3px 0 0 var(--border-strong);
 }
-.data-table tbody tr.row-closed:hover {
-  background: color-mix(in srgb, var(--bg-tertiary) 76%, var(--text-primary) 10%);
-  opacity: 0.65;
+.data-table tbody tr.row-closed td,
+.data-table tbody tr.row-closed td strong {
+  color: var(--text-faint);
+  font-weight: 500;
 }
+/* 状态徽章保持原色：行内唯一高饱和元素，保证"已关闭"可识别 */
 .data-table tbody tr.row-closed .status-badge,
 .data-table tbody tr.row-closed .status-badge span { opacity: 1; }
+/* 缩略图褪色：强化完结感 */
+.data-table tbody tr.row-closed img { filter: grayscale(0.65); opacity: 0.75; }
+/* hover 轻微回亮，保留可交互性 */
+.data-table tbody tr.row-closed:hover {
+  background: color-mix(in srgb, var(--bg-secondary) 84%, var(--text-primary) 11%);
+}
+.data-table tbody tr.row-closed:hover td,
+.data-table tbody tr.row-closed:hover td strong { color: var(--text-secondary); }
 .data-table .sortable { cursor: pointer; user-select: none; }
 .data-table .sortable:hover { color: var(--accent-blue); }
 .sort-icon { display: inline-block; width: 12px; opacity: 0.4; }
@@ -688,15 +698,19 @@ kbd {
 }
 .handover-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
-/* 其他交接卡片：处理状态=已关闭 → 暗色透明 */
+/* 其他交接卡片：处理状态=已关闭 → 档案化样式（灰底+淡化，醒目识别但不抢注意力） */
 .handover-card.card-closed {
-  opacity: 0.55;
-  background: color-mix(in srgb, var(--bg-tertiary) 82%, var(--text-primary) 8%);
+  background: color-mix(in srgb, var(--bg-secondary) 90%, var(--text-primary) 6%);
+  border-left: 4px solid var(--border-strong);
 }
+.handover-card.card-closed .handover-card-title { color: var(--text-faint); }
+.handover-card.card-closed .handover-card-content,
+.handover-card.card-closed .handover-card-footer { color: var(--text-faint); opacity: 0.85; }
+.handover-card.card-closed img { filter: grayscale(0.65); opacity: 0.75; }
 .handover-card.card-closed:hover {
-  opacity: 0.68;
-  background: color-mix(in srgb, var(--bg-tertiary) 76%, var(--text-primary) 10%);
+  background: color-mix(in srgb, var(--bg-secondary) 84%, var(--text-primary) 10%);
 }
+.handover-card.card-closed:hover .handover-card-title { color: var(--text-secondary); }
 .handover-card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
 .handover-card-content { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; max-height: 96px; overflow-y: auto; line-height: 1.5; word-break: break-word; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 .handover-card-content::-webkit-scrollbar { width: 5px; }
@@ -2336,11 +2350,11 @@ html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--bg-tertiary) 70%, var(--bg-secondary));
 }
-.data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected) {
+.data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected):not(.row-closed) {
   background: color-mix(in srgb, var(--bg-tertiary) 38%, transparent);
 }
 .data-table tbody tr.clickable-row { transition: background 0.12s ease; }
-.data-table tbody tr.clickable-row:hover:not(.row-selected) {
+.data-table tbody tr.clickable-row:hover:not(.row-selected):not(.row-closed) {
   background: color-mix(in srgb, var(--accent-blue) 7%, var(--bg-hover));
 }
 .data-table tbody tr.row-selected {
@@ -2474,8 +2488,8 @@ html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .handover-card:hover { border-color: color-mix(in srgb, var(--accent-blue) 40%, var(--border)); }
 
 /* ─── 16. 深色主题下减弱斑马纹对比，保持柔和 ─── */
-[data-theme="dark"] .data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected),
-[data-theme="noir"] .data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected) {
+[data-theme="dark"] .data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected):not(.row-closed),
+[data-theme="noir"] .data-table tbody tr:nth-child(even):not(.batch-more-row):not(.row-selected):not(.row-closed) {
   background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
 }
 
@@ -2666,4 +2680,8 @@ button.dh-chip:focus-visible { outline: 2px solid var(--accent-blue); outline-of
 .handover-card.priority-high   { border-left: 3px solid var(--accent-red); }
 .handover-card.priority-medium { border-left: 3px solid var(--accent-orange); }
 .handover-card.priority-low    { border-left: 3px solid var(--accent-green); }
-.handover-card.card-closed     { border-left-color: var(--border-strong); }
+
+/* 已关闭的卡片统一用灰色档案条覆盖优先级色条（完结态优先于优先级态，避免红条重新吸引注意力） */
+.handover-card.card-closed.priority-high,
+.handover-card.card-closed.priority-medium,
+.handover-card.card-closed.priority-low { border-left-color: var(--border-strong); }
