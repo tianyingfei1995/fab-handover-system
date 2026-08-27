@@ -1,14 +1,15 @@
-# Oracle Cloud Always Free 部署操作指南
+# 部署操作指南（RHEL / Ubuntu 通用）
 
-> 本部署包配套说明，覆盖：开户 → 建 VM → 上传代码 → 运行部署脚本 → 验证 → 数据迁移 → 故障排查。
+> 本部署包配套说明，覆盖：准备服务器 → 上传代码 → 运行部署脚本 → 验证 → 数据迁移 → 故障排查。
+> `deploy.sh` 会自动识别系统：**RHEL 8/9**（含 Rocky/Alma/Oracle Linux，用 dnf + firewalld）与 **Ubuntu 22.04/24.04**（用 apt + ufw）。
 
 ## 目录文件说明
 
 | 文件 | 用途 |
 |------|------|
-| `01-开户清单-README.md` | 开户准备材料 + 分步开户指引 |
-| `deploy.sh` | 服务器上一键部署脚本（Node20 + 依赖 + pm2 + nginx） |
-| `03-systemd-fab-handover.service` | 可选的 systemd 守护方式（与 pm2 二选一） |
+| `01-开户清单-README.md` | Oracle Cloud 开户准备材料 + 分步开户指引 |
+| `deploy.sh` | 服务器上一键部署脚本（Node20 + 依赖 + pm2 + nginx，自动识别 RHEL/Ubuntu） |
+| `03-systemd-fab-handover.service` | 可选的 systemd 守护方式（与 pm2 二选一，RHEL/Ubuntu 通用） |
 
 ---
 
@@ -105,7 +106,7 @@ echo "0 2 * * * cp /root/fab-handover-system/data/fab.db /root/backups/fab-$(dat
 | 现象 | 排查 |
 |------|------|
 | 公网 IP 打不开，localhost 通 | OCI 安全列表未放行 80/443 |
-| `better-sqlite3` 编译失败 | 确认已装 `build-essential python3 libsqlite3-dev`；`npm rebuild better-sqlite3` |
+| `better-sqlite3` 编译失败 | RHEL：`dnf groupinstall "Development Tools" && dnf install sqlite-devel`；Ubuntu：`apt install build-essential libsqlite3-dev`；然后 `npm rebuild better-sqlite3` |
 | 上传图片 404 | `public/uploads` 目录权限；nginx `client_max_body_size` |
 | 想让系统从未登录过的域名访问 | 解析 A 记录到公网 IP，`DOMAIN=xxx bash deploy.sh` 配 HTTPS |
 | 账号被锁定 / 忘密码 | 直接改 SQLite：`sqlite3 data/fab.db "update users set password='新hash'"` |

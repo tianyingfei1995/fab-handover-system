@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ###############################################################################
-# FAB 生产日常交接系统 — Oracle Cloud Always Free 一键部署脚本
-# 目标系统：Ubuntu 22.04 / 24.04 LTS (ARM64)
+# FAB 生产日常交接系统 — 一键部署脚本
+# 目标系统：RHEL 8/9（含 Rocky/Alma/Oracle Linux）以及 Ubuntu 22.04/24.04 LTS
 #
 # 功能：
-#   1. 安装 Node.js 20 LTS (NodeSource)
-#   2. 安装 better-sqlite3 需要的编译工具链 (arm64 需源码编译，必须)
+#   1. 自动识别系统（RHEL 系用 dnf，Ubuntu 系用 apt），安装 Node.js 20 LTS
+#   2. 安装 better-sqlite3 需要的编译工具链
 #   3. 拉取项目源码并安装 npm 依赖
 #   4. 用 pm2 托管 node server.js（开机自启 + 崩溃自动重启 + 日志）
 #   5. 用 nginx 反向代理（端口 80），可选项：配置自定义域名
@@ -17,7 +17,7 @@ set -euo pipefail
 #   sudo DOMAIN=example.com bash deploy.sh               # 同时配置域名+Let's Encrypt
 #   sudo AUTO_SSL=false bash deploy.sh                   # 用外部反代/想手动配证书
 #
-# 提示：先创建好 VM 并确定公网 IP 后，SSH 登录再执行本脚本。
+# 提示：先创建好服务器并确定 IP 后，SSH 登录再执行本脚本。
 ###############################################################################
 
 # ─── 配置区（可按需修改）────────────────────────────────────────
@@ -39,18 +39,46 @@ err(){ echo -e "${c_red}[错误]${c_reset} $*" >&2; }
 # 检查是否为 root
 if [ "$(id -u)" -ne 0 ]; then err "请用 root 运行：sudo bash deploy.sh"; exit 1; fi
 
+# ─── 系统识别（RHEL 系 / Ubuntu 系）────────────────────────────
+if [ -r /etc/os-release ]; then
+  . /etc/os-release
+else
+  err "无法读取 /etc/os-release，不支持的系统"; exit 1
+fi
+OS_ID="${ID:-}"
+OS_FAMILY="$(echo "${ID_LIKE:-$OS_ID}" | tr ' ' '\n' | grep -m1 -E 'rhel|fedora' || true)"
+if echo "$OS_ID" | grep -qE 'rhel|rocky|almalinux|ol|centos|fedora' || [ -n "$OS_FAMILY" ]; then
+  PKG="rhel"
+else
+  PKG="ubuntu"
+fi
+log "检测到系统：${PRETTY_NAME:-$OS_ID}（按 ${PKG} 分支部署）"
+
 # ─── 1. 系统更新 + 安装基础工具 ───────────────────────────────
 log "系统更新并安装基础工具..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get install -y curl ca-certificates git nginx ufw gnupg build-essential \
-                   python3 python3-pip make g++ libsqlite3-dev
+if [ "$PKG" = "rhel" ]; then
+  dnf install -y dnf-utils || yum install -y yum-utils || true
+  # certbot 与部分工具在 EPEL 仓库
+  dnf install -y epel-release 2>/dev/null || true
+  dnf groupinstall -y "Development Tools" || yum groupinstall -y "Development Tools"
+  dnf install -y curl ca-certificates git nginx make gcc-c++ python3 python3-pip sqlite-devel
+else
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -y
+  apt-get install -y curl ca-certificates git nginx ufw gnupg build-essential \
+                     python3 python3-pip make g++ libsqlite3-dev
+fi
 
 # ─── 2. 安装 Node.js 20 LTS ──────────────────────────────────
 if ! command -v node >/dev/null 2>&1 || ! node -v | grep -q "v$NODE_MAJOR"; then
   log "安装 Node.js $NODE_MAJOR LTS..."
-  curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
-  apt-get install -y nodejs
+  if [ "$PKG" = "rhel" ]; then
+    curl -fsSL "https://rpm.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
+    dnf install -y nodejs
+  else
+    curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
+    apt-get install -y nodejs
+  fi
 fi
 log "Node: $(node -v)  npm: $(npm -v)"
 
@@ -77,7 +105,7 @@ if ! node -e "require('better-sqlite3'); console.log('better-sqlite3 加载成�
   cd "$APP_DIR"
   npm rebuild better-sqlite3
   node -e "require('better-sqlite3'); console.log('better-sqlite3 重编译成功')" \
-    || { err "better-sqlite3 初始化失败，请安装 build-essential 后重试 npm rebuild better-sqlite3"; exit 1; }
+    || { err "better-sqlite3 初始化失败：RHEL 请确认已装 Development Tools + sqlite-devel（Ubuntu 为 build-essential + libsqlite3-dev）后重试 npm rebuild better-sqlite3"; exit 1; }
 fi
 
 # 创建运行时数据/上传目录（server.js 会 mkdir，这里确保权限正确）
@@ -105,7 +133,12 @@ pm2 startup systemd -u "$ADMIN_USER" --hp "/root" 2>/dev/null || pm2 startup 2>/
 
 # ─── 6. 配置 nginx 反向代理（HTTP :80 或 HTTPS）──────────────
 log "配置 nginx 反向代理..."
-NGINX_CONF="/etc/nginx/sites-available/fab-handover"
+if [ "$PKG" = "rhel" ]; then
+  # RHEL 系 nginx 无 sites-available，使用 conf.d
+  NGINX_CONF="/etc/nginx/conf.d/fab-handover.conf"
+else
+  NGINX_CONF="/etc/nginx/sites-available/fab-handover"
+fi
 
 UPSTREAM="127.0.0.1:${PORT_APP}"
 if [ -n "$DOMAIN" ]; then
@@ -138,24 +171,44 @@ server {
 }
 EOF
 
-ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/fab-handover
-rm -f /etc/nginx/sites-enabled/default
+if [ "$PKG" = "rhel" ]; then
+  # RHEL 系默认主配置已 include conf.d/*.conf，禁用默认 server 块
+  sed -i 's/^\(    listen\s*80 default_server;\)/    #\1/; s/^\(    server_name\s*_;\)/    #\1/' /etc/nginx/nginx.conf 2>/dev/null || true
+else
+  ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/fab-handover
+  rm -f /etc/nginx/sites-enabled/default
+fi
 nginx -t && systemctl enable nginx --now 2>/dev/null || true
 systemctl reload nginx 2>/dev/null || true
 
-# ─── 7. 配置防火墙（可选，若启用了 ufw）───────────────────────
-log "配置 UFW 防火墙规则..."
-ufw allow OpenSSH 2>/dev/null || true
-ufw allow 80/tcp 2>/dev/null || true
-ufw allow 443/tcp 2>/dev/null || true
-# 应用端口默认经 nginx 反代无需对公网开放；如走直连可放开：
-# ufw allow ${PORT_APP}/tcp 2>/dev/null || true
-ufw --force enable 2>/dev/null || true
+# ─── 7. 配置防火墙（RHEL 用 firewalld，Ubuntu 用 ufw）─────────
+if [ "$PKG" = "rhel" ]; then
+  if systemctl is-active firewalld >/dev/null 2>&1; then
+    log "配置 firewalld 防火墙规则..."
+    firewall-cmd --permanent --add-service=http  >/dev/null 2>&1 || true
+    firewall-cmd --permanent --add-service=https >/dev/null 2>&1 || true
+    firewall-cmd --reload >/dev/null 2>&1 || true
+  else
+    warn "firewalld 未运行，跳过防火墙配置（如需放行 80/443 请手动开启 firewalld）"
+  fi
+else
+  log "配置 UFW 防火墙规则..."
+  ufw allow OpenSSH 2>/dev/null || true
+  ufw allow 80/tcp 2>/dev/null || true
+  ufw allow 443/tcp 2>/dev/null || true
+  # 应用端口默认经 nginx 反代无需对公网开放；如走直连可放开：
+  # ufw allow ${PORT_APP}/tcp 2>/dev/null || true
+  ufw --force enable 2>/dev/null || true
+fi
 
 # ─── 8. 若指定域名且开启 AUTO_SSL，用 certbot 自动申请证书 ──
 if [ -n "$DOMAIN" ] && [ "$AUTO_SSL" = "true" ]; then
   log "为 $DOMAIN 申请 Let's Encrypt 证书..."
-  apt-get install -y certbot python3-certbot-nginx
+  if [ "$PKG" = "rhel" ]; then
+    dnf install -y certbot python3-certbot-nginx || warn "certbot 安装失败（RHEL 需 EPEL 仓库），请手动安装"
+  else
+    apt-get install -y certbot python3-certbot-nginx
+  fi
   certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email || warn "证书申请失败，请手动检查域名解析"
 fi
 
