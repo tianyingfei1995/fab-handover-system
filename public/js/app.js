@@ -4569,10 +4569,8 @@ function renderDutyIssueTable() {
   if (!tbody) return;
   const searchEl = document.getElementById('dutyIssueSearch');
   const confirmEl = document.getElementById('dutyIssueConfirmFilter');
-  const dateEl = document.getElementById('dutyIssueDateFilter');
   const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   const confirmFilter = confirmEl ? confirmEl.value : '';
-  const dateFilter = dateEl ? dateEl.value : '';
 
   let filtered = dutyIssues.filter(d => {
     const matchSearch = !search ||
@@ -4585,8 +4583,7 @@ function renderDutyIssueTable() {
     const matchConfirm = !confirmFilter ||
       (confirmFilter === 'confirmed' && hasConfirm) ||
       (confirmFilter === 'unconfirmed' && !hasConfirm);
-    const matchDate = !dateFilter || (d.updated_at || '').startsWith(dateFilter);
-    return matchSearch && matchConfirm && matchDate;
+    return matchSearch && matchConfirm;
   });
 
   filtered = applyDiSort(filtered);
@@ -4627,9 +4624,7 @@ function toggleDiSelectAll(checked) {
   if (checked) {
     const search = (document.getElementById('dutyIssueSearch').value || '').toLowerCase();
     const confirmEl = document.getElementById('dutyIssueConfirmFilter');
-    const dateEl = document.getElementById('dutyIssueDateFilter');
     const confirmFilter = confirmEl ? confirmEl.value : '';
-    const dateFilter = dateEl ? dateEl.value : '';
     dutyIssues.filter(d => {
       const matchSearch = !search ||
         stripHtml(d.category1).toLowerCase().includes(search) ||
@@ -4641,8 +4636,7 @@ function toggleDiSelectAll(checked) {
       const matchConfirm = !confirmFilter ||
         (confirmFilter === 'confirmed' && hasConfirm) ||
         (confirmFilter === 'unconfirmed' && !hasConfirm);
-      const matchDate = !dateFilter || (d.updated_at || '').startsWith(dateFilter);
-      return matchSearch && matchConfirm && matchDate;
+      return matchSearch && matchConfirm;
     }).forEach(d => selectedDiIds.add(d.id));
   } else {
     selectedDiIds.clear();
@@ -5495,7 +5489,7 @@ const FILTER_BADGE_CONF = [
   { reset: 'resetLtMachineFilters',      ids: ['ltMachineSearch', 'ltMachineStatusFilter', 'ltMachineProcessStatusFilter'], ms: ['ltMachineShiftMs'] },
   { reset: 'resetLotHandoverFilters',    ids: ['lotHandoverSearch', 'lotHandoverStatusFilter', 'lotHandoverCreatedByFilter', 'lotHandoverDateFilter'] },
   { reset: 'resetSignInFilters',         ids: ['signInSearch', 'signInHostFilter'], ms: ['signInShiftMs'] },
-  { reset: 'resetDutyIssueFilters',      ids: ['dutyIssueSearch', 'dutyIssueConfirmFilter', 'dutyIssueDateFilter'] },
+  { reset: 'resetDutyIssueFilters',      ids: ['dutyIssueSearch', 'dutyIssueConfirmFilter'] },
   { reset: 'resetArHandoverFilters',     ids: ['arHandoverSearch', 'arHandoverStatusFilter', 'arHandoverOwnerFilter'] },
   { reset: 'resetDailyHandoverFilters',  ids: ['dailyHandoverSearch', 'dailyHandoverPriorityFilter', 'dailyHandoverCategoryFilter', 'dailyHandoverCreatedByFilter'] },
 ];
@@ -5955,7 +5949,6 @@ document.getElementById('lotHandoverCreatedByFilter').addEventListener('change',
 document.getElementById('lotHandoverDateFilter').addEventListener('change', renderLotHandoverTable);
 document.getElementById('signInHostFilter').addEventListener('change', renderSignInTable);
 document.getElementById('dutyIssueConfirmFilter').addEventListener('change', renderDutyIssueTable);
-document.getElementById('dutyIssueDateFilter').addEventListener('change', renderDutyIssueTable);
 document.getElementById('arHandoverOwnerFilter').addEventListener('change', () => { _cachedArFilteredIds = null; renderArHandoverTable(); });
 document.getElementById('dailyHandoverCategoryFilter').addEventListener('change', renderDailyHandoverCards);
 document.getElementById('dailyHandoverCreatedByFilter').addEventListener('change', renderDailyHandoverCards);
@@ -6022,8 +6015,6 @@ function resetDutyIssueFilters() {
   document.getElementById('dutyIssueSearch').value = '';
   const cf = document.getElementById('dutyIssueConfirmFilter');
   if (cf) cf.value = '';
-  const df = document.getElementById('dutyIssueDateFilter');
-  if (df) df.value = '';
   renderDutyIssueTable();
   updateFilterBadges();
 }
