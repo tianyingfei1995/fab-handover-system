@@ -341,11 +341,20 @@ function formatBytes(bytes) {
 }
 
 function openModal(id) { document.getElementById(id).classList.add('active'); document.body.classList.add('modal-open'); }
+// 关闭编辑弹窗的 6 个 ID（排除 DetailModal 等只读弹窗）
+const _EDIT_MODALS = new Set(['machineModal', 'ltMachineModal', 'dailyHandoverModal',
+  'lotHandoverModal', 'dutyIssueModal', 'arHandoverModal', 'signInModal']);
 function closeModal(id) {
   const modal = document.getElementById(id);
   if (modal && modal.dataset.forceChange === 'true') {
     showToast('请先修改密码才能继续使用系统', 'error');
     return;
+  }
+  // 编辑弹窗被取消/关闭（非提交保存场景）→ 清理本次打开后新增但未保存的孤儿文件
+  if (_EDIT_MODALS.has(id)) {
+    // 保存按钮调用 save*() 时会先把快照清空（标记为已保存 → 不清理），
+    // 这里若快照仍有内容则说明是取消/关闭操作
+    void discardEditingTempFiles();
   }
   modal.classList.remove('active');
   document.body.classList.remove('modal-open');
@@ -2619,6 +2628,7 @@ function renderMachineTable() {
 function openMachineModal() {
   imageContext = 'machine';
   attachContext = 'machine';
+  captureEditingSnapshot('', []);
   document.getElementById('machineModalTitle').textContent = '新增机台';
   document.getElementById('machineEditId').value = '';
   document.getElementById('mMachineName').value = '';
@@ -2685,10 +2695,13 @@ function editMachine(id) {
   currentAttachments = parseAttachments(m.attachments);
   syncAttachments();
   renderAttachmentList();
+  captureEditingSnapshot(m.image_path || '', currentAttachments);
   openModal('machineModal');
 }
 
 async function saveMachine() {
+  // 标记快照为空 → closeModal 不会再删除本次新增文件（它们属于已保存的正式内容）
+  captureEditingSnapshot('', []);
   syncShiftCombo();
   const id = document.getElementById('machineEditId').value;
   const data = {
@@ -3014,6 +3027,7 @@ function openArHandoverModal() {
   document.getElementById('arStatus').value = 'open';
   document.getElementById('arContent').innerHTML = '';
   document.getElementById('arOwnerSection').innerHTML = '';
+  captureEditingSnapshot('', []);
   openModal('arHandoverModal');
 }
 
@@ -3027,10 +3041,12 @@ function editArHandover(id) {
   document.getElementById('arStatus').value = a.status || 'open';
   document.getElementById('arContent').innerHTML = sanitizeHtml(a.ar) || '';
   document.getElementById('arOwnerSection').innerHTML = sanitizeHtml(a.owner_section) || '';
+  captureEditingSnapshot('', []);
   openModal('arHandoverModal');
 }
 
 async function saveArHandover() {
+  captureEditingSnapshot('', []);
   const id = document.getElementById('arEditId').value;
   const data = {
     date: document.getElementById('arDate').value || '',
@@ -3412,6 +3428,7 @@ function openLtMachineModal() {
   document.getElementById('ltMRemark').value = '';
   imageContext = 'ltMachine';
   attachContext = 'ltMachine';
+  captureEditingSnapshot('', []);
   resetLtMachineImage();
   currentAttachments = [];
   syncAttachments();
@@ -3455,10 +3472,12 @@ function editLtMachine(id) {
   currentAttachments = parseAttachments(m.attachments);
   syncAttachments();
   renderAttachmentList();
+  captureEditingSnapshot(m.image_path || '', currentAttachments);
   openModal('ltMachineModal');
 }
 
 async function saveLtMachine() {
+  captureEditingSnapshot('', []);
   syncLtShiftCombo();
   const id = document.getElementById('ltMachineEditId').value;
   const data = {
@@ -3818,6 +3837,7 @@ async function batchDeleteLotHandovers() {
 function openLotHandoverModal() {
   imageContext = 'lotHandover';
   attachContext = 'lotHandover';
+  captureEditingSnapshot('', []);
   document.getElementById('lotHandoverModalTitle').textContent = '新增LOT交接';
   document.getElementById('lotHEditId').value = '';
   document.getElementById('lotHLotId').value = '';
@@ -3851,6 +3871,7 @@ function editLotHandover(id) {
   currentAttachments = parseAttachments(h.attachments);
   syncAttachments();
   renderAttachmentList();
+  captureEditingSnapshot(h.follow_up_images || '', currentAttachments);
   openModal('lotHandoverModal');
 }
 
@@ -3866,6 +3887,7 @@ function setLotHFontSize(size) {
 }
 
 async function saveLotHandover() {
+  captureEditingSnapshot('', []);
   const id = document.getElementById('lotHEditId').value;
   const data = {
     lot_id: document.getElementById('lotHLotId').value.trim(),
@@ -4731,6 +4753,7 @@ function openDutyIssueModal() {
   document.getElementById('diOwnerConfirm').innerHTML = '';
   imageContext = 'dutyIssue';
   attachContext = 'dutyIssue';
+  captureEditingSnapshot('', []);
   resetDutyIssueImage();
   currentAttachments = [];
   syncAttachments();
@@ -4754,10 +4777,12 @@ function editDutyIssue(id) {
   currentAttachments = parseAttachments(d.attachments);
   syncAttachments();
   renderAttachmentList();
+  captureEditingSnapshot(d.image_path || '', currentAttachments);
   openModal('dutyIssueModal');
 }
 
 async function saveDutyIssue() {
+  captureEditingSnapshot('', []);
   const id = document.getElementById('diEditId').value;
   const data = {
     category1: document.getElementById('diCategory1').innerHTML.trim(),
@@ -5088,6 +5113,7 @@ function openDailyHandoverModal() {
   document.getElementById('dhDueDate').value = '';
   imageContext = 'dailyHandover';
   attachContext = 'dailyHandover';
+  captureEditingSnapshot('', []);
   resetDhImage();
   currentAttachments = [];
   syncAttachments();
@@ -5113,10 +5139,12 @@ function editDailyHandover(id) {
   currentAttachments = parseAttachments(h.attachments);
   syncAttachments();
   renderAttachmentList();
+  captureEditingSnapshot(h.image_path || '', currentAttachments);
   openModal('dailyHandoverModal');
 }
 
 async function saveDailyHandover() {
+  captureEditingSnapshot('', []);
   const id = document.getElementById('dhEditId').value;
   const data = {
     title: document.getElementById('dhTitle').innerHTML.trim(),
@@ -6055,6 +6083,35 @@ let imageContext = 'machine';
 // 附件相关
 let currentAttachments = []; // [{path, name, size}]
 let attachContext = 'machine';
+// 打开编辑弹窗时的原始快照，用于"取消"时识别本次新增的孤儿文件
+let _editingSnapshotImages = [];    // 图片路径数组
+let _editingSnapshotAttachPaths = []; // 附件路径数组（Set 方便查找）
+
+// 打开弹窗时保存快照：传入"已有数据"的图片路径字符串和附件数组
+function captureEditingSnapshot(existingImagePathStr, existingAttachArr) {
+  _editingSnapshotImages = parseImagePaths(existingImagePathStr || '').slice();
+  _editingSnapshotAttachPaths = (existingAttachArr || []).map(a => a.path || '').filter(Boolean);
+}
+
+// 取消/关闭弹窗时：识别本次打开后新增、最终未保存的文件，立即调用后端清理（避免孤儿）
+async function discardEditingTempFiles() {
+  const oldImgs = new Set(_editingSnapshotImages);
+  const newImages = currentImages.filter(p => p && !oldImgs.has(p));
+  const oldAtts = new Set(_editingSnapshotAttachPaths);
+  const newAtts = currentAttachments.filter(a => a && a.path && !oldAtts.has(a.path)).map(a => a.path);
+  const toClean = [...newImages, ...newAtts];
+  if (toClean.length === 0) {
+    _editingSnapshotImages = []; _editingSnapshotAttachPaths = [];
+    return;
+  }
+  try {
+    await apiCall('DELETE', '/api/uploads/temp', { paths: toClean });
+  } catch (e) {
+    // 清理失败不阻断用户，这些孤儿将在每日 3 点自动清理兜底
+  } finally {
+    _editingSnapshotImages = []; _editingSnapshotAttachPaths = [];
+  }
+}
 // 灯箱状态
 let lightboxImages = [];
 let lightboxIndex = 0;
@@ -6233,7 +6290,7 @@ async function uploadAttachments(files) {
   const formData = new FormData();
   fileList.forEach(f => formData.append('files', f));
 
-  showToast('附件上传中...', 'success');
+  showToast('附件上传中，请稍候...', 'success');
   try {
     const token = getAuthToken();
     const headers = {};
@@ -6254,7 +6311,7 @@ async function uploadAttachments(files) {
       currentAttachments.push(...result.files);
       syncAttachments();
       renderAttachmentList();
-      showToast(`成功上传 ${result.files.length} 个附件`);
+      showToast(`已添加 ${result.files.length} 个附件到表单，点击保存后生效`, 'success');
     } else {
       showToast('未返回文件信息', 'error');
     }
@@ -6573,7 +6630,7 @@ async function uploadMachineImages(files) {
     currentImages.push(...data.paths);
     syncImagePath();
     renderGallery();
-    showToast(`成功上传 ${data.paths.length} 张图片`);
+    showToast(`已添加 ${data.paths.length} 张图片到表单，点击保存后生效`, 'success');
     // 恢复提示区域
     if (hint) { hint.innerHTML = originalHint; hint.classList.remove('upload-loading'); }
     updateImageCount();

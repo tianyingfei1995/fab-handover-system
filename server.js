@@ -2664,6 +2664,37 @@ app.get('/api/cleanup-logs', authMiddleware, (req, res) => {
 // 上传的图片静态访问
 app.use('/uploads', express.static(path.join(UPLOAD_DIR)));
 
+// ─── 取消弹窗时删除临时未提交的文件 ──────────────────
+// 前端取消编辑弹窗时，把"本次打开后新上传但最终未保存的文件路径"发给后端立即清理
+app.delete('/api/uploads/temp', authMiddleware, (req, res) => {
+  const paths = Array.isArray(req.body && req.body.paths) ? req.body.paths : [];
+  const cleaned = [];
+  const failed = [];
+  for (const p of paths) {
+    if (typeof p !== 'string') continue;
+    const rel = decodeURIComponent(p).replace(/^\.\.|\0/g, '').replace(/^\/+/, '');
+    if (!rel.startsWith('uploads/')) continue;
+    const relPath = rel.substring('uploads/'.length);
+    const fullPath = path.join(UPLOAD_DIR, relPath);
+    if (!fs.existsSync(fullPath)) continue;
+    try {
+      fs.unlinkSync(fullPath);
+      cleaned.push(p);
+    } catch (e) {
+      failed.push({ path: p, err: e.message });
+    }
+  }
+  // 同步移除 ownership 记录
+  if (cleaned.length > 0) {
+    try {
+      const map = loadUploadOwnershipMap();
+      cleaned.forEach(p => { const k = p.replace(/^\/+/, ''); delete map[k]; });
+      saveUploadOwnershipMap(map);
+    } catch (_) { /* 静默 */ }
+  }
+  res.json({ cleaned: cleaned.length, failed });
+});
+
 // 前端 SPA 回退（所有非 /api 请求返回 index.html）
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
